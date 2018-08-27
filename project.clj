@@ -18,3 +18,4 @@
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}}
   :repl-options {:port 8604})
+

@@ -1,4 +1,5 @@
 (ns ide-server.core
+  (:gen-class)
   (:require [session-lib.core :as ssn]
             [server-lib.core :as srvr]
             [utils-lib.core :as utils]
@@ -26,7 +27,10 @@
 (defn execute-shell-command
   ""
   [command]
-  (let [final-command (atom ["./sh"])
+  (let [final-command (atom 
+                        #_["./sh"]
+                        ["./home/vladimir/workspace/clojure/projects/ide_server/sh"]
+                        )
         result (atom nil)]
     (when (string? command)
       (swap!
@@ -610,7 +614,7 @@
                            group-id
                            artifact-id
                            version))
-              :data [@status]})})
+              :data {:out @status}})})
  )
 
 (defn git-project
@@ -745,6 +749,15 @@
                   "git log origin/master..HEAD --oneline"])]
     output))
 
+(defn git-diff
+  ""
+  [root-dir]
+  (let [output (execute-shell-command
+                 [(str
+                    "cd " root-dir)
+                  "git diff"])]
+    output))
+
 (defn git-project
   ""
   [request-body]
@@ -764,6 +777,7 @@
          git-remote-link :git-remote-link
          language :language
          project-type :project-type} entity
+        project-diff (atom "")
         unpushed-commits (atom "")
         output (atom "")]
     (when (= action
@@ -862,6 +876,10 @@
       unpushed-commits
       (git-unpushed-commits
         absolute-path))
+    (reset!
+      project-diff
+      (git-diff
+        absolute-path))
     {:status (stc/ok)
      :headers {(eh/content-type) (mt/text-plain)}
      :body (str
@@ -869,8 +887,51 @@
               :git-remote-url (or new-git-remote-link
                                   git-remote-link)
               :unpushed-commits @unpushed-commits
+              :project-diff @project-diff
               :data @output})})
  )
+
+(defn save-file-changes
+  ""
+  [request-body]
+  (try
+    (let [file-path (:file-path request-body)
+          file-content (:file-content request-body)
+          f (java.io.File.
+              file-path)
+          ary (.getBytes
+                file-content
+                "UTF-8")
+          os (java.io.FileOutputStream.
+               f)]
+      (.write
+        os
+        ary)
+      (.close
+        os)
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str {:status "success"})})
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str {:status "error"
+                   :error-message (.getMessage e)})}
+     ))
+ )
+
+(defn get-labels
+  ""
+  []
+  (dao/get-entities
+    {:entity-type "language"
+     :entity-filter {}
+     :projection [:code :english :serbian]
+     :projection-include true
+     :qsort {:code 1}
+     :pagination false
+     :collation {:locale "sr"}}))
 
 (defn not-found
   "Requested action not found"
@@ -965,6 +1026,10 @@
              "POST /git-status" (git-status
                                   (parse-body
                                     request))
+             "POST /save-file-changes" (save-file-changes
+                                         (parse-body
+                                           request))
+             "POST /get-labels" (get-labels)
              {:status (stc/not-found)
               :headers {(eh/content-type) (mt/text-plain)}
               :body (str {:status  "success"})})]
@@ -984,6 +1049,7 @@
                           request))
       "POST /am-i-logged-in" (ssn/am-i-logged-in
                                request)
+      "POST /get-labels" (get-labels)
       {:status (stc/unauthorized)
        :headers {(eh/content-type) (mt/text-plain)}
        :body (str
