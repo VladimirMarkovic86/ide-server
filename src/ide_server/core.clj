@@ -2,15 +2,15 @@
   (:gen-class)
   (:require [session-lib.core :as ssn]
             [server-lib.core :as srvr]
-            [utils-lib.core :as utils]
+            [utils-lib.core :as utils :refer [parse-body]]
             [mongo-lib.core :as mon]
-            [dao-lib.core :as dao]
-            [language-lib.core :as lang]
             [ajax-lib.http.entity-header :as eh]
             [ajax-lib.http.response-header :as rsh]
             [ajax-lib.http.mime-type :as mt]
             [ajax-lib.http.status-code :as stc]
+            [ide-middle.functionalities :as imfns]
             [ide-middle.project.entity :as pem]
+            [common-server.core :as rt]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
             [clojure.string :as cstring])
@@ -922,132 +922,127 @@
      ))
  )
 
-(defn not-found
-  "Requested action not found"
-  []
-  {:status (stc/not-found)
-   :headers {(eh/content-type) (mt/text-plain)}
-   :body (str {:status "error"
-               :error-message "404 not found"})})
+(defn response-routing-fn
+  ""
+  [request
+   request-start-line]
+  (case request-start-line
+    "POST /read-file" (read-file
+                        (parse-body
+                          request))
+    "POST /execute-shell-command" (execute-shell-command-fn
+                                    (parse-body
+                                      request))
+    "POST /list-documents" (list-documents-fn
+                             (parse-body
+                               request))
+    "POST /new-folder" (mkdir-fn
+                         (parse-body
+                           request))
+    "POST /new-file" (mkfile-fn
+                       (parse-body
+                         request))
+    "POST /move-document" (move-document-fn
+                            (parse-body
+                              request))
+    "POST /copy-document" (copy-document-fn
+                            (parse-body
+                              request))
+    "POST /delete-document" (delete-document-fn
+                              (parse-body
+                                request))
+    "POST /build-project" (build-project
+                            (parse-body
+                              request))
+    "POST /build-project-dependencies" (build-project-dependencies
+                                         (parse-body
+                                           request))
+    "POST /clean-project" (clean-project
+                            (parse-body
+                              request))
+    "POST /run-project" (run-project
+                          (parse-body
+                            request))
+    "POST /git-project" (git-project
+                          (parse-body
+                            request))
+    "POST /git-status" (git-status
+                         (parse-body
+                           request))
+    "POST /save-file-changes" (save-file-changes
+                                (parse-body
+                                  request))
+    nil))
 
-(defn parse-body
-  "Read entity-body from request, convert from string to clojure data"
-  [request]
-  (read-string
-    (:body request))
+(defn allow-action-routing-fn
+  ""
+  [request
+   request-start-line]
+  (let [allowed-functionalities (rt/get-allowed-actions
+                                  request)]
+    (case request-start-line
+      "POST /read-file" (contains?
+                          allowed-functionalities
+                          imfns/read-file)
+      "POST /execute-shell-command" (contains?
+                                      allowed-functionalities
+                                      imfns/execute-shell-command)
+      "POST /list-documents" (contains?
+                               allowed-functionalities
+                               imfns/list-documents)
+      "POST /new-folder" (contains?
+                           allowed-functionalities
+                           imfns/new-folder)
+      "POST /new-file" (contains?
+                         allowed-functionalities
+                         imfns/new-file)
+      "POST /move-document" (contains?
+                              allowed-functionalities
+                              imfns/move-document)
+      "POST /copy-document" (contains?
+                              allowed-functionalities
+                              imfns/copy-document)
+      "POST /delete-document" (contains?
+                                allowed-functionalities
+                                imfns/delete-document)
+      "POST /build-project" (contains?
+                              allowed-functionalities
+                              imfns/build-project)
+      "POST /build-project-dependencies" (contains?
+                                           allowed-functionalities
+                                           imfns/build-project-dependencies)
+      "POST /clean-project" (contains?
+                              allowed-functionalities
+                              imfns/clean-project)
+      "POST /run-project" (contains?
+                            allowed-functionalities
+                            imfns/run-project)
+      "POST /git-project" (contains?
+                            allowed-functionalities
+                            imfns/git-project)
+      "POST /git-status" (contains?
+                           allowed-functionalities
+                           imfns/git-status)
+      "POST /save-file-changes" (contains?
+                                  allowed-functionalities
+                                  imfns/save-file-changes)
+      false))
  )
 
 (defn routing
   "Routing function"
   [request-start-line
    request]
-  (println
-    (str
-      "\n"
-      (dissoc
-        request
-        :body))
-   )
-  (if (ssn/am-i-logged-in-fn request)
-    (let [[cookie-key
-           cookie-value] (ssn/refresh-session
-                           request)
-          response
-           (case request-start-line
-             "POST /am-i-logged-in" (ssn/am-i-logged-in
-                                      request)
-             "POST /get-entities" (dao/get-entities
-                                    (parse-body
-                                      request))
-             "POST /get-entity" (dao/get-entity
-                                  (parse-body
-                                    request))
-             "POST /update-entity" (dao/update-entity
-                                     (parse-body
-                                       request))
-             "POST /insert-entity" (dao/insert-entity
-                                     (parse-body
-                                       request))
-             "DELETE /delete-entity" (dao/delete-entity
-                                       (parse-body
-                                         request))
-             "POST /logout" (ssn/logout
-                              request)
-             "POST /read-file" (read-file
-                                 (parse-body
-                                   request))
-             "POST /execute-shell-command" (execute-shell-command-fn
-                                             (parse-body
-                                               request))
-             "POST /list-documents" (list-documents-fn
-                                      (parse-body
-                                        request))
-             "POST /new-folder" (mkdir-fn
-                                  (parse-body
-                                    request))
-             "POST /new-file" (mkfile-fn
-                                (parse-body
-                                  request))
-             "POST /move-document" (move-document-fn
-                                     (parse-body
-                                       request))
-             "POST /copy-document" (copy-document-fn
-                                     (parse-body
-                                       request))
-             "POST /delete-document" (delete-document-fn
-                                       (parse-body
-                                         request))
-             "POST /build-project" (build-project
-                                     (parse-body
-                                       request))
-             "POST /build-project-dependencies" (build-project-dependencies
-                                                  (parse-body
-                                                    request))
-             "POST /clean-project" (clean-project
-                                     (parse-body
-                                       request))
-             "POST /run-project" (run-project
-                                   (parse-body
-                                     request))
-             "POST /git-project" (git-project
-                                   (parse-body
-                                     request))
-             "POST /git-status" (git-status
-                                  (parse-body
-                                    request))
-             "POST /save-file-changes" (save-file-changes
-                                         (parse-body
-                                           request))
-             "POST /get-labels" (lang/get-labels request)
-             "POST /set-language" (lang/set-language
-                                    request
-                                    (parse-body request))
-             {:status (stc/not-found)
-              :headers {(eh/content-type) (mt/text-plain)}
-              :body (str {:status  "success"})})]
-      (update-in
-        response
-        [:headers]
-        assoc
-        cookie-key
-        cookie-value))
-    (case request-start-line
-      "POST /login" (ssn/login-authentication
-                      (parse-body
-                        request)
-                      (:user-agent request))
-      "POST /sign-up" (dao/insert-entity
-                        (parse-body
-                          request))
-      "POST /am-i-logged-in" (ssn/am-i-logged-in
-                               request)
-      "POST /get-labels" (lang/get-labels request)
-      {:status (stc/unauthorized)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-              {:status  "success"
-               :logged-in false})})
-   ))
+  (rt/routing
+    request-start-line
+    request
+    (response-routing-fn
+      request
+      request-start-line)
+    (allow-action-routing-fn
+      request
+      request-start-line))
+ )
 
 (defn start-server
   "Start server"
