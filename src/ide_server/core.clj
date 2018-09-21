@@ -9,6 +9,7 @@
             [ajax-lib.http.mime-type :as mt]
             [ajax-lib.http.status-code :as stc]
             [ide-middle.functionalities :as imfns]
+            [ide-middle.request-urls :as irurls]
             [ide-middle.project.entity :as pem]
             [common-server.core :as rt]
             [clojure.java.io :as io]
@@ -29,9 +30,7 @@
   ""
   [command]
   (let [final-command (atom 
-                        #_["./sh"]
-                        ["./home/vladimir/workspace/clojure/projects/ide_server/sh"]
-                        )
+                        ["/home/vladimir/workspace/clojure/projects/ide_server/sh"])
         result (atom nil)]
     (when (string? command)
       (swap!
@@ -415,8 +414,10 @@
              project-type :project-type} (mon/mongodb-find-by-id
                                            entity-type
                                            entity-id)]
-        (when (and (= language
-                      pem/clojure)
+        (when (and (contains?
+                     #{pem/clojure
+                       pem/clojurescript}
+                     language)
                    (= project-type
                       pem/application))
           (let [pid (slurp
@@ -475,8 +476,10 @@
                project-type :project-type} (mon/mongodb-find-by-id
                                              entity-type
                                              entity-id)]
-          (when (and (= language
-                        pem/clojure)
+          (when (and (contains?
+                       #{pem/clojure
+                         pem/clojurescript}
+                       language)
                      (= project-type
                         pem/application))
             (execute-shell-command
@@ -516,8 +519,10 @@
                project-type :project-type} (mon/mongodb-find-by-id
                                              entity-type
                                              entity-id)]
-          (when (and (= language
-                        pem/clojure)
+          (when (and (contains?
+                       #{pem/clojure
+                         pem/clojurescript}
+                       language)
                      (= project-type
                         pem/application))
             (let [pid (slurp
@@ -924,124 +929,195 @@
 
 (defn response-routing-fn
   ""
-  [request
-   request-start-line]
-  (case request-start-line
-    "POST /read-file" (read-file
-                        (parse-body
-                          request))
-    "POST /execute-shell-command" (execute-shell-command-fn
-                                    (parse-body
-                                      request))
-    "POST /list-documents" (list-documents-fn
-                             (parse-body
-                               request))
-    "POST /new-folder" (mkdir-fn
-                         (parse-body
-                           request))
-    "POST /new-file" (mkfile-fn
-                       (parse-body
-                         request))
-    "POST /move-document" (move-document-fn
-                            (parse-body
-                              request))
-    "POST /copy-document" (copy-document-fn
-                            (parse-body
-                              request))
-    "POST /delete-document" (delete-document-fn
-                              (parse-body
-                                request))
-    "POST /build-project" (build-project
-                            (parse-body
-                              request))
-    "POST /build-project-dependencies" (build-project-dependencies
-                                         (parse-body
-                                           request))
-    "POST /clean-project" (clean-project
-                            (parse-body
-                              request))
-    "POST /run-project" (run-project
-                          (parse-body
-                            request))
-    "POST /git-project" (git-project
-                          (parse-body
-                            request))
-    "POST /git-status" (git-status
-                         (parse-body
-                           request))
-    "POST /save-file-changes" (save-file-changes
-                                (parse-body
-                                  request))
-    nil))
+  [request]
+  (let [{request-uri :request-uri
+         request-method :request-method} request]
+    (cond
+      (= request-method
+         "POST")
+        (cond
+          (= request-uri
+             irurls/read-file-url)
+            (read-file
+              (parse-body
+                request))
+          (= request-uri
+             irurls/execute-shell-command-url)
+            (execute-shell-command-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/list-documents-url)
+            (list-documents-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/new-folder-url)
+            (mkdir-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/new-file-url)
+            (mkfile-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/move-document-url)
+            (move-document-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/copy-document-url)
+            (copy-document-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/delete-document-url)
+            (delete-document-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/build-project-url)
+            (build-project
+              (parse-body
+                request))
+          (= request-uri
+             irurls/build-project-dependencies-url)
+            (build-project-dependencies
+              (parse-body
+                request))
+          (= request-uri
+             irurls/clean-project-url)
+            (clean-project
+              (parse-body
+                request))
+          (= request-uri
+             irurls/run-project-url)
+            (run-project
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-project-url)
+            (git-project
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-status-url)
+            (git-status
+              (parse-body
+                request))
+          (= request-uri
+             irurls/save-file-changes-url)
+            (save-file-changes
+              (parse-body
+                request))
+          :else
+            nil)
+      :else
+        nil))
+ )
 
 (defn allow-action-routing-fn
   ""
-  [request
-   request-start-line]
+  [request]
   (let [allowed-functionalities (rt/get-allowed-actions
-                                  request)]
-    (case request-start-line
-      "POST /read-file" (contains?
-                          allowed-functionalities
-                          imfns/read-file)
-      "POST /execute-shell-command" (contains?
-                                      allowed-functionalities
-                                      imfns/execute-shell-command)
-      "POST /list-documents" (contains?
-                               allowed-functionalities
-                               imfns/list-documents)
-      "POST /new-folder" (contains?
-                           allowed-functionalities
-                           imfns/new-folder)
-      "POST /new-file" (contains?
-                         allowed-functionalities
-                         imfns/new-file)
-      "POST /move-document" (contains?
-                              allowed-functionalities
-                              imfns/move-document)
-      "POST /copy-document" (contains?
-                              allowed-functionalities
-                              imfns/copy-document)
-      "POST /delete-document" (contains?
-                                allowed-functionalities
-                                imfns/delete-document)
-      "POST /build-project" (contains?
-                              allowed-functionalities
-                              imfns/build-project)
-      "POST /build-project-dependencies" (contains?
-                                           allowed-functionalities
-                                           imfns/build-project-dependencies)
-      "POST /clean-project" (contains?
-                              allowed-functionalities
-                              imfns/clean-project)
-      "POST /run-project" (contains?
-                            allowed-functionalities
-                            imfns/run-project)
-      "POST /git-project" (contains?
-                            allowed-functionalities
-                            imfns/git-project)
-      "POST /git-status" (contains?
-                           allowed-functionalities
-                           imfns/git-status)
-      "POST /save-file-changes" (contains?
-                                  allowed-functionalities
-                                  imfns/save-file-changes)
-      false))
+                                  request)
+        {request-uri :request-uri
+         request-method :request-method} request]
+    (cond
+      (= request-method
+         "POST")
+        (cond
+          (= request-uri
+             irurls/read-file-url)
+            (contains?
+              allowed-functionalities
+              imfns/read-file)
+          (= request-uri
+             irurls/execute-shell-command-url)
+            (contains?
+              allowed-functionalities
+              imfns/execute-shell-command)
+          (= request-uri
+             irurls/list-documents-url)
+            (contains?
+              allowed-functionalities
+              imfns/list-documents)
+          (= request-uri
+             irurls/new-folder-url)
+            (contains?
+              allowed-functionalities
+              imfns/new-folder)
+          (= request-uri
+             irurls/new-file-url)
+            (contains?
+              allowed-functionalities
+              imfns/new-file)
+          (= request-uri
+             irurls/move-document-url)
+            (contains?
+              allowed-functionalities
+              imfns/move-document)
+          (= request-uri
+             irurls/copy-document-url)
+            (contains?
+              allowed-functionalities
+              imfns/copy-document)
+          (= request-uri
+             irurls/delete-document-url)
+            (contains?
+              allowed-functionalities
+              imfns/delete-document)
+          (= request-uri
+             irurls/build-project-url)
+            (contains?
+              allowed-functionalities
+              imfns/build-project)
+          (= request-uri
+             irurls/build-project-dependencies-url)
+            (contains?
+              allowed-functionalities
+              imfns/build-project-dependencies)
+          (= request-uri
+             irurls/clean-project-url)
+            (contains?
+              allowed-functionalities
+              imfns/clean-project)
+          (= request-uri
+             irurls/run-project-url)
+            (contains?
+              allowed-functionalities
+              imfns/run-project)
+          (= request-uri
+             irurls/git-project-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-project)
+          (= request-uri
+             irurls/git-status-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-status)
+          (= request-uri
+             irurls/save-file-changes-url)
+            (contains?
+              allowed-functionalities
+              imfns/save-file-changes)
+          :else
+            false)
+      :else
+        false))
  )
 
 (defn routing
   "Routing function"
-  [request-start-line
-   request]
+  [request]
   (rt/routing
-    request-start-line
     request
     (response-routing-fn
-      request
-      request-start-line)
+      request)
     (allow-action-routing-fn
-      request
-      request-start-line))
+      request))
  )
 
 (defn start-server
@@ -1051,10 +1127,16 @@
     (srvr/start-server
       routing
       {(rsh/access-control-allow-origin) #{"https://ide:8455"
-                                           "http://ide:8457"
-                                           "https://192.168.1.86:8455"}
-       (rsh/access-control-allow-methods) "GET, POST, DELETE, PUT"}
-      1608)
+                                           "https://ide:1614"
+                                           "http://ide:1614"
+                                           "http://ide:8457"}
+       (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
+       (rsh/access-control-allow-credentials) true}
+      1604
+      {:keystore-file-path
+        "/home/vladimir/workspace/certificate/jks/ide_server.jks"
+       :keystore-password
+        "ultras12"})
     (mon/mongodb-connect
       db-name)
     (ssn/create-indexes)
