@@ -27,7 +27,7 @@
      "running")
 
 (defn execute-shell-command
-  ""
+  "Execute shell command from sh file at it's file path"
   [command]
   (let [final-command (atom 
                         ["/home/vladimir/workspace/clojure/projects/ide_server/sh"])
@@ -58,7 +58,7 @@
     @result))
 
 (defn execute-shell-command-fn
-  ""
+  "Execute shell command function with response"
   [request-body]
   (let [command (:command request-body)
         output (execute-shell-command
@@ -70,7 +70,7 @@
  )
 
 (defn read-file
-  ""
+  "Read file if supported and return it in response as entity body"
   [request-body]
   (try
     (let [file-path (:file-path request-body)
@@ -127,7 +127,7 @@
  )
 
 (defn list-documents-fn
-  ""
+  "List documents from dir-path"
   [request-body]
   (let [dir-path (:dir-path request-body)
         output (execute-shell-command
@@ -140,7 +140,7 @@
  )
 
 (defn mkdir-fn
-  ""
+  "Make directory in dir-path"
   [request-body]
   (let [dir-path (:dir-path request-body)
         output (execute-shell-command
@@ -153,7 +153,7 @@
  )
 
 (defn mkfile-fn
-  ""
+  "Make file in file-path"
   [request-body]
   (let [file-path (:file-path request-body)
         output (execute-shell-command
@@ -166,7 +166,7 @@
  )
 
 (defn move-document-fn
-  ""
+  "Move document in dest-path"
   [request-body]
   (let [doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
@@ -180,7 +180,7 @@
  )
 
 (defn copy-document-fn
-  ""
+  "Copy document in dest-path"
   [request-body]
   (let [doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
@@ -194,7 +194,7 @@
  )
 
 (defn delete-document-fn
-  ""
+  "Delete document doc-path"
   [request-body]
   (let [doc-path (:doc-path request-body)
         output (execute-shell-command
@@ -207,7 +207,7 @@
  )
 
 (defn project-name
-  ""
+  "Format project name"
   [group-id
    artifact-id
    version]
@@ -219,7 +219,7 @@
     version))
 
 (defn build-project
-  ""
+  "Build project fetched by _id"
   [request-body]
   (let [entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -267,7 +267,7 @@
  )
 
 (defn build-project-dependencies
-  ""
+  "Build project dependencies by _id"
   [request-body]
   (let [entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -369,7 +369,7 @@
  )
 
 (defn clean-project
-  ""
+  "Clean project by _id"
   [request-body]
   (let [entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -400,7 +400,7 @@
  )
 
 (defn server-status-fn
-  ""
+  "Check server status of application project"
   [request-body]
   (let [status (atom "no status")]
     (try
@@ -458,7 +458,7 @@
       @status))
 
 (defn start-server-fn
-  ""
+  "Start server of application project"
   [request-body]
   (let [status (atom
                  (server-status-fn
@@ -501,7 +501,7 @@
      @status))
 
 (defn stop-server-fn
-  ""
+  "Stop server of application project"
   [request-body]
   (let [status (atom
                  (server-status-fn
@@ -559,7 +559,7 @@
       @status))
 
 (defn restart-server-fn
-  ""
+  "Restart server of application project"
   [request-body]
   (let [status (atom
                  (stop-server-fn
@@ -571,7 +571,7 @@
     @status))
 
 (defn run-project
-  ""
+  "Interact with project wit start, stop, status and restart commands"
   [request-body]
   (let [entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -624,7 +624,7 @@
  )
 
 (defn git-project
-  ""
+  "Interact with project with git commands"
   [request-body]
   (let [entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -656,7 +656,7 @@
  )
 
 (defn git-status
-  ""
+  "Check git status of project"
   [root-dir]
   (let [output (execute-shell-command
                  [(str
@@ -665,7 +665,7 @@
     output))
 
 (defn git-init
-  ""
+  "Initialize git project if not initialized yet"
   [root-dir]
   (let [output (execute-shell-command
                  [(str
@@ -674,7 +674,7 @@
     output))
 
 (defn git-remote-add
-  ""
+  "Add remote git repository with ssh or https url"
   [root-dir
    git-remote-repo-link]
   (let [output (execute-shell-command
@@ -685,7 +685,7 @@
     output))
 
 (defn git-remote-remove
-  ""
+  "Remove remote repository url"
   [root-dir]
   (let [output (execute-shell-command
                  [(str
@@ -694,7 +694,7 @@
     output))
 
 (defn git-add
-  ""
+  "Git add new file or file with changes"
   [root-dir
    file-path]
   (let [output (execute-shell-command
@@ -705,7 +705,7 @@
     output))
 
 (defn git-rm
-  ""
+  "Git remove file"
   [root-dir
    file-path]
   (let [output (execute-shell-command
@@ -716,7 +716,8 @@
     output))
 
 (defn git-reset
-  ""
+  "Git reset, exclude particular file from commit if it was added
+   doesn't work for \"git rm\""
   [root-dir
    file-path]
   (let [output (execute-shell-command
@@ -727,7 +728,7 @@
     output))
 
 (defn git-commit
-  ""
+  "Git commit changes"
   [root-dir
    commit-message]
   (let [output (execute-shell-command
@@ -738,7 +739,7 @@
     output))
 
 (defn git-push
-  ""
+  "Git push commits to remote repository"
   [root-dir]
   (let [output (execute-shell-command
                  [(str
@@ -747,7 +748,7 @@
     output))
 
 (defn git-unpushed-commits
-  ""
+  "Check for unpushed commits"
   [root-dir]
   (let [output (execute-shell-command
                  [(str
@@ -756,7 +757,7 @@
     output))
 
 (defn git-diff
-  ""
+  "Git diff of project"
   [root-dir]
   (let [output (execute-shell-command
                  [(str
@@ -765,7 +766,7 @@
     output))
 
 (defn git-project
-  ""
+  "Interact with project with git commands"
   [request-body]
   (let [entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -898,7 +899,7 @@
  )
 
 (defn save-file-changes
-  ""
+  "Save file changes"
   [request-body]
   (try
     (let [file-path (:file-path request-body)
@@ -928,7 +929,7 @@
  )
 
 (defn response-routing-fn
-  ""
+  "Custom routing function"
   [request]
   (let [{request-uri :request-uri
          request-method :request-method} request]
@@ -1018,7 +1019,7 @@
  )
 
 (defn allow-action-routing-fn
-  ""
+  "Check if action is allowed function"
   [request]
   (let [allowed-functionalities (rt/get-allowed-actions
                                   request)
