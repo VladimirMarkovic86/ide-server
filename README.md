@@ -1,4 +1,4 @@
-# server
+# Integrated development environment server
 
 Integrated development environment server
 
