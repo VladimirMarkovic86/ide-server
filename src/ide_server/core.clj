@@ -266,6 +266,38 @@
                  :data @output})})
  )
 
+(defn build-uberjar
+  "Build uberjar fetched by _id"
+  [request-body]
+  (let [entity-id (:entity-id request-body)
+        entity-type (:entity-type request-body)
+        {group-id :group-id
+         artifact-id :artifact-id
+         version :version
+         absolute-path :absolute-path
+         language :language
+         project-type :project-type} (mon/mongodb-find-by-id
+                                       entity-type
+                                       entity-id)
+        output (atom nil)]
+    (reset!
+      output
+      (execute-shell-command
+        [(str
+           "cd " absolute-path)
+         "lein uberjar"]))
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str {:status "success"
+                 :heading (str
+                            "Build uberjar "
+                            (project-name
+                              group-id
+                              artifact-id
+                              version))
+                 :data @output})})
+ )
+
 (defn build-project-dependencies
   "Build project dependencies by _id"
   [request-body]
@@ -983,6 +1015,11 @@
               (parse-body
                 request))
           (= request-uri
+             irurls/build-uberjar-url)
+            (build-uberjar
+              (parse-body
+                request))
+          (= request-uri
              irurls/build-project-dependencies-url)
             (build-project-dependencies
               (parse-body
@@ -1074,6 +1111,11 @@
             (contains?
               allowed-functionalities
               imfns/build-project)
+          (= request-uri
+             irurls/build-uberjar-url)
+            (contains?
+              allowed-functionalities
+              imfns/build-uberjar)
           (= request-uri
              irurls/build-project-dependencies-url)
             (contains?
