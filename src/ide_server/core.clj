@@ -26,11 +26,53 @@
 (def running
      "running")
 
+(defn sh-exists?
+  ""
+  []
+  (let [out (:out
+              (sh
+                "ls" "/tmp/sh"))]
+    (not
+      (empty?
+        out))
+   ))
+
+(defn make-sh-file
+  ""
+  []
+  (when-not (sh-exists?)
+    (try
+      (sh "touch" "/tmp/sh")
+      (sh "chmod" "755" "/tmp/sh")
+      (let [file-path "/tmp/sh"
+            file-content (str
+                           "#!/bin/bash\n"
+                           "for i do\n"
+                           "  eval \"$i\"\n"
+                           "done")
+            f (java.io.File.
+                file-path)
+            ary (.getBytes
+                  file-content
+                  "UTF-8")
+            os (java.io.FileOutputStream.
+                 f)]
+        (.write
+          os
+          ary)
+        (.close
+          os))
+      (catch Exception e
+        (println (.getMessage e))
+       ))
+   ))
+
 (defn execute-shell-command
   "Execute shell command from sh file at it's file path"
   [command]
+  (make-sh-file)
   (let [final-command (atom 
-                        ["/home/vladimir/workspace/clojure/projects/ide_server/sh"])
+                        ["/tmp/sh"])
         result (atom nil)]
     (when (string? command)
       (swap!
@@ -1177,7 +1219,7 @@
        (rsh/access-control-allow-credentials) true}
       1604
       {:keystore-file-path
-        "/home/vladimir/workspace/certificate/jks/ide_server.jks"
+        "certificate/ide_server.jks"
        :keystore-password
         "ultras12"})
     (mon/mongodb-connect
