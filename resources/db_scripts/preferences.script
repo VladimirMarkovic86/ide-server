@@ -1,0 +1,4 @@
+(db/insert-many
+  "preferences"
+  [{ :user-id 1, :language "english", :language-name "English" }])
+

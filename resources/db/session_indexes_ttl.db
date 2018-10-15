@@ -1,0 +1,1 @@
+#{{:name "short-session-idx", :field :created-at, :expire-after-seconds 1800, :_id 1}}

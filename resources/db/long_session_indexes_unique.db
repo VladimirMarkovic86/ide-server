@@ -1,0 +1,1 @@
+#{{:name "long-session-uuid-unique-idx", :fields [:uuid], :unique true, :_id 1}}
