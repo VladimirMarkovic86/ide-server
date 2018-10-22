@@ -15,7 +15,6 @@
 
   :min-lein-version "2.0.0"
   
-  ; AOT - Compailation ahead of time
   :main ^:skip-aot ide-server.core
     
   :uberjar-name "ide-server-standalone.jar"
