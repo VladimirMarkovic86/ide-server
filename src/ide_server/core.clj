@@ -1214,21 +1214,24 @@
   "Start server"
   []
   (try
-    (srvr/start-server
-      routing
-      {(rsh/access-control-allow-origin) #{"https://ide:8455"
-                                           "https://ide:1614"
-                                           "http://ide:1614"
-                                           "http://ide:8457"}
-       (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
-       (rsh/access-control-allow-credentials) true}
-      (or (read-string
-            (System/getenv "PORT"))
-          1604)
-      {:keystore-file-path
-        "certificate/ide_server.jks"
-       :keystore-password
-        "ultras12"})
+    (let [port (System/getenv "PORT")
+          port (if port
+                 (read-string
+                   port)
+                 1604)]
+      (srvr/start-server
+        routing
+        {(rsh/access-control-allow-origin) #{"https://ide:8455"
+                                             "https://ide:1614"
+                                             "http://ide:1614"
+                                             "http://ide:8457"}
+         (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
+         (rsh/access-control-allow-credentials) true}
+        port
+        {:keystore-file-path
+          "certificate/ide_server.jks"
+         :keystore-password
+          "ultras12"}))
     (mon/mongodb-connect
       db-uri
       db-name)
