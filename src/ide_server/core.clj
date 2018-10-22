@@ -3,7 +3,8 @@
   (:require [session-lib.core :as ssn]
             [server-lib.core :as srvr]
             [utils-lib.core :as utils :refer [parse-body]]
-            [db-lib.core :as db]
+            [mongo-lib.core :as mon]
+            [ide-server.scripts :as scripts]
             [ajax-lib.http.entity-header :as eh]
             [ajax-lib.http.response-header :as rsh]
             [ajax-lib.http.mime-type :as mt]
@@ -16,6 +17,13 @@
             [clojure.java.shell :refer [sh]]
             [clojure.string :as cstring])
   (:import [java.io FileNotFoundException]))
+
+(def db-uri
+     (or (System/getenv "PROD_MONGODB")
+         "mongodb://admin:passw0rd@127.0.0.1:27017/admin"))
+
+(def db-name
+     "ide-db")
 
 (def stopped
      "stopped")
@@ -267,7 +275,7 @@
          version :version
          absolute-path :absolute-path
          language :language
-         project-type :project-type} (db/find-by-id
+         project-type :project-type} (mon/mongodb-find-by-id
                                        entity-type
                                        entity-id)
         output (atom nil)]
@@ -315,7 +323,7 @@
          version :version
          absolute-path :absolute-path
          language :language
-         project-type :project-type} (db/find-by-id
+         project-type :project-type} (mon/mongodb-find-by-id
                                        entity-type
                                        entity-id)
         output (atom nil)]
@@ -347,7 +355,7 @@
          m-version :version
          m-absolute-path :absolute-path
          m-language :language
-         m-project-type :project-type} (db/find-by-id
+         m-project-type :project-type} (mon/mongodb-find-by-id
                                          entity-type
                                          entity-id)
         project-clj (slurp
@@ -356,7 +364,7 @@
                           m-absolute-path
                           "/project.clj"))
                      )
-        projects (db/find-by-filter
+        projects (mon/mongodb-find
                    entity-type)
         apply-conj-fn (fn [atom-value
                            param]
@@ -449,7 +457,7 @@
          version :version
          absolute-path :absolute-path
          language :language
-         project-type :project-type} (db/find-by-id
+         project-type :project-type} (mon/mongodb-find-by-id
                                        entity-type
                                        entity-id)
         output (execute-shell-command
@@ -482,7 +490,7 @@
              version :version
              absolute-path :absolute-path
              language :language
-             project-type :project-type} (db/find-by-id
+             project-type :project-type} (mon/mongodb-find-by-id
                                            entity-type
                                            entity-id)]
         (when (and (contains?
@@ -544,7 +552,7 @@
                version :version
                absolute-path :absolute-path
                language :language
-               project-type :project-type} (db/find-by-id
+               project-type :project-type} (mon/mongodb-find-by-id
                                              entity-type
                                              entity-id)]
           (when (and (contains?
@@ -587,7 +595,7 @@
                version :version
                absolute-path :absolute-path
                language :language
-               project-type :project-type} (db/find-by-id
+               project-type :project-type} (mon/mongodb-find-by-id
                                              entity-type
                                              entity-id)]
           (when (and (contains?
@@ -648,7 +656,7 @@
         entity-type (:entity-type request-body)
         {group-id :group-id
          artifact-id :artifact-id
-         version :version} (db/find-by-id
+         version :version} (mon/mongodb-find-by-id
                              entity-type
                              entity-id)
         action (:action request-body)
@@ -705,7 +713,7 @@
          version :version
          absolute-path :absolute-path
          language :language
-         project-type :project-type} (db/find-by-id
+         project-type :project-type} (mon/mongodb-find-by-id
                                        entity-type
                                        entity-id)
         output (execute-shell-command
@@ -845,7 +853,7 @@
         new-git-remote-link (:new-git-remote-link request-body)
         file-path (:file-path request-body)
         commit-message (:commit-message request-body)
-        entity (db/find-by-id
+        entity (mon/mongodb-find-by-id
                  entity-type
                  entity-id)
         {group-id :group-id
@@ -877,7 +885,7 @@
         (git-remote-add
           absolute-path
           new-git-remote-link))
-      (db/update-by-id
+      (mon/mongodb-update-by-id
         entity-type
         entity-id
         {:git-remote-link new-git-remote-link})
@@ -893,7 +901,7 @@
         (git-remote-add
           absolute-path
           new-git-remote-link))
-      (db/update-by-id
+      (mon/mongodb-update-by-id
         entity-type
         entity-id
         {:git-remote-link new-git-remote-link})
@@ -1214,13 +1222,17 @@
                                            "http://ide:8457"}
        (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
        (rsh/access-control-allow-credentials) true}
-      1604
+      (or (read-string
+            (System/getenv "PORT"))
+          1604)
       {:keystore-file-path
         "certificate/ide_server.jks"
        :keystore-password
         "ultras12"})
-    (db/connect
-      "/home/vladimir/workspace/clojure/projects/ide_server/resources/db/")
+    (mon/mongodb-connect
+      db-uri
+      db-name)
+    (scripts/initialize-db-if-needed)
     (ssn/create-indexes)
     (catch Exception e
       (println (.getMessage e))
@@ -1232,6 +1244,7 @@
   []
   (try
     (srvr/stop-server)
+    (mon/mongodb-disconnect)
     (catch Exception e
       (println (.getMessage e))
      ))
