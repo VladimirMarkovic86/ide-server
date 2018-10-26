@@ -10,7 +10,7 @@
                  [org.clojars.vladimirmarkovic86/ajax-lib "0.1.0"]
                  [org.clojars.vladimirmarkovic86/session-lib "0.2.0"]
                  [org.clojars.vladimirmarkovic86/ide-middle "0.1.0"]
-                 [org.clojars.vladimirmarkovic86/common-server "0.2.0"]
+                 [org.clojars.vladimirmarkovic86/common-server "0.3.0"]
                  ]
 
   :min-lein-version "2.0.0"
