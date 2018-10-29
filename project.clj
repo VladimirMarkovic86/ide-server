@@ -4,7 +4,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
-                 [org.clojars.vladimirmarkovic86/server-lib "0.3.1"]
+                 [org.clojars.vladimirmarkovic86/server-lib "0.3.7"]
                  [org.clojars.vladimirmarkovic86/mongo-lib "0.2.0"]
                  [org.clojars.vladimirmarkovic86/utils-lib "0.3.0"]
                  [org.clojars.vladimirmarkovic86/ajax-lib "0.1.0"]
