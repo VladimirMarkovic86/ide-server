@@ -3,7 +3,7 @@
             [utils-lib.core :as utils]))
 
 (defn initialize-db
-  ""
+  "Initialize database"
   []
   (mon/mongodb-insert-many
     "language"
@@ -120,7 +120,7 @@
  )
 
 (defn initialize-db-if-needed
-  ""
+  "Check if database exists and initialize it if it doesn't"
   []
   (try
     (when-not (mon/mongodb-exists

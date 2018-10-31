@@ -32,7 +32,7 @@
      "running")
 
 (defn sh-exists?
-  ""
+  "Check if sh file exists"
   []
   (let [out (:out
               (sh
@@ -43,7 +43,7 @@
    ))
 
 (defn make-sh-file
-  ""
+  "Make sh file so it can be used in executing shell commands"
   []
   (when-not (sh-exists?)
     (try
