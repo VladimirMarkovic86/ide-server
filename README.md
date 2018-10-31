@@ -36,6 +36,8 @@ By default project listens on port 1604, so you can make requests on https://ide
 
 **For purpose of making requests ide-client was made and you should start up ide-client also.**
 
+**MongoDB server should also be up and running and its URI link should be set in PROD_MONGODB environment variable**
+
 ## Authors
 
 * **Vladimir Markovic** - [VladimirMarkovic86](https://github.com/VladimirMarkovic86)
