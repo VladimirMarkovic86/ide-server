@@ -1,6 +1,6 @@
-# Integrated development environment client
+# Integrated development environment server
 
-Integrated development environment client project implements backend part of ide project, and is hosted on server-lib.
+Integrated development environment server project implements backend part of ide project, and is hosted on server-lib.
 
 ### Installing
 
