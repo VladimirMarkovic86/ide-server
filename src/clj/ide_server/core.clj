@@ -15,7 +15,8 @@
             [common-server.core :as rt]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
-            [clojure.string :as cstring])
+            [clojure.string :as cstring]
+            [audit-lib.core :refer [audit]])
   (:import [java.io FileNotFoundException]))
 
 (def db-uri
@@ -1202,13 +1203,16 @@
 (defn routing
   "Routing function"
   [request]
-  (rt/routing
-    request
-    (response-routing-fn
-      request)
-    (allow-action-routing-fn
-      request))
- )
+  (let [response (rt/routing
+                   request
+                   (response-routing-fn
+                     request)
+                   (allow-action-routing-fn
+                     request))]
+    (audit
+      request
+      response)
+    response))
 
 (defn start-server
   "Start server"
