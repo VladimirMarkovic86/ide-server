@@ -1,12 +1,29 @@
 (ns ide-server.scripts
   (:require [mongo-lib.core :as mon]
-            [utils-lib.core :as utils]))
+            [utils-lib.core :as utils]
+            [common-middle.collection-names :refer [db-updates-cname
+                                                    language-cname
+                                                    role-cname
+                                                    user-cname
+                                                    preferences-cname]]
+            [ide-middle.collection-names :refer [project-cname]]
+            [common-middle.role-names :refer [user-admin-rname
+                                              user-mod-rname
+                                              language-admin-rname
+                                              language-mod-rname
+                                              role-admin-rname
+                                              role-mod-rname]]
+            [ide-middle.role-names :refer [project-admin-rname
+                                           project-mod-rname
+                                           working-area-user-rname]]
+            [common-middle.functionalities :as fns]
+            [ide-middle.functionalities :as imfns]))
 
 (defn initialize-db
   "Initialize database"
   []
   (mon/mongodb-insert-many
-    "language"
+    language-cname
     [{ :code 1, :english "Save", :serbian "Сачувај" }
      { :code 2, :english "Log out", :serbian "Одјави се" }
      { :code 3, :english "Home", :serbian "Почетна" }
@@ -68,55 +85,116 @@
      { :code 28, :english "Role name", :serbian "Назив улоге" }
      { :code 29, :english "Functionalities", :serbian "Функционалности" }
      { :code 30, :english "Roles", :serbian "Улоге" }
-     { :code 31, :english "No entities", :serbian "Нема ентитета" }
-     { :code 1032, :english "Build uberjar", :serbian "Изгради uberjar" }])
+     { :code 31, :english "No entities", :serbian "Нема ентитета" }])
   (mon/mongodb-insert-many
-    "role"
-    [{ :role-name "User administrator", :functionalities [ "user-create", "user-read", "user-update", "user-delete" ] }
-     { :role-name "User moderator", :functionalities [ "user-read", "user-update" ] }
-     { :role-name "Language administrator", :functionalities [ "language-create", "language-read", "language-update", "language-delete" ] }
-     { :role-name "Language moderator", :functionalities [ "language-read", "language-update" ] }
-     { :role-name "Role administrator", :functionalities [ "role-create", "role-read", "role-update", "role-delete" ] }
-     { :role-name "Role moderator", :functionalities [ "role-read", "role-update" ] }
-     { :role-name "Project administrator", :functionalities [ "project-create", "project-read", "project-update", "project-delete" ] }
-     { :role-name "Project moderator", :functionalities [ "project-read", "project-update" ] }
-     { :role-name "Working area user", :functionalities [ "read-file", "execute-shell-command", "list-documents", "new-folder", "new-file", "move-document", "copy-document", "delete-document", "build-project", "build-uberjar", "build-project-dependencies", "clean-project", "run-project", "git-project", "git-status", "save-file-changes" ]}])
+    role-cname
+    [{:role-name user-admin-rname
+      :functionalities [fns/user-create
+                        fns/user-read
+                        fns/user-update
+                        fns/user-delete]}
+     {:role-name user-mod-rname
+      :functionalities [fns/user-read
+                        fns/user-update]}
+     {:role-name language-admin-rname
+      :functionalities [fns/language-create
+                        fns/language-read
+                        fns/language-update
+                        fns/language-delete]}
+     {:role-name language-mod-rname
+      :functionalities [fns/language-read
+                        fns/language-update]}
+     {:role-name role-admin-rname
+      :functionalities [fns/role-create
+                        fns/role-read
+                        fns/role-update
+                        fns/role-delete]}
+     {:role-name role-mod-rname
+      :functionalities [fns/role-read
+                        fns/role-update]}
+     {:role-name project-admin-rname
+      :functionalities [imfns/project-create
+                        imfns/project-read
+                        imfns/project-update
+                        imfns/project-delete]}
+     {:role-name project-mod-rname
+      :functionalities [imfns/project-read
+                        imfns/project-update]}
+     {:role-name working-area-user-rname
+      :functionalities [imfns/read-file
+                        imfns/execute-shell-command
+                        imfns/list-documents
+                        imfns/new-folder
+                        imfns/new-file
+                        imfns/move-document
+                        imfns/copy-document
+                        imfns/delete-document
+                        imfns/build-project
+                        imfns/build-uberjar
+                        imfns/build-project-dependencies
+                        imfns/clean-project
+                        imfns/run-project
+                        imfns/git-project
+                        imfns/git-status
+                        imfns/save-file-changes]}])
   (let [user-admin-id (:_id
                         (mon/mongodb-find-one
-                          "role"
-                          {:role-name "User administrator"}))
+                          role-cname
+                          {:role-name user-admin-rname}))
         language-admin-id (:_id
                             (mon/mongodb-find-one
-                              "role"
-                              {:role-name "Language administrator"}))
+                              role-cname
+                              {:role-name language-admin-rname}))
         role-admin-id (:_id
                         (mon/mongodb-find-one
-                          "role"
-                          {:role-name "Role administrator"}))
+                          role-cname
+                          {:role-name role-admin-rname}))
         project-admin-id (:_id
                            (mon/mongodb-find-one
-                             "role"
-                             {:role-name "Project administrator"}))
+                             role-cname
+                             {:role-name project-admin-rname}))
         working-area-user-id (:_id
                                (mon/mongodb-find-one
-                                 "role"
-                                 {:role-name "Working area user"}))
+                                 role-cname
+                                 {:role-name working-area-user-rname}))
         encrypted-password (utils/encrypt-password
                              (or (System/getenv "ADMIN_USER_PASSWORD")
                                  "123"))]
     (mon/mongodb-insert-one
-      "user"
+      user-cname
       {:username "admin"
        :email "123@123"
        :password encrypted-password
-       :roles [user-admin-id language-admin-id role-admin-id project-admin-id working-area-user-id]}))
+       :roles [user-admin-id
+               language-admin-id
+               role-admin-id
+               project-admin-id
+               working-area-user-id]}))
   (let [user-id (:_id
                   (mon/mongodb-find-one
-                    "user"
+                    user-cname
                     {}))]
     (mon/mongodb-insert-one
-      "preferences"
-      {:user-id user-id, :language "serbian", :language-name "Srpski" }))
+      preferences-cname
+      {:user-id user-id
+       :language "serbian"
+       :language-name "Srpski" }))
+  (mon/mongodb-insert-one
+    db-updates-cname
+    {:initialized true
+     :date (java.util.Date.)})
+ )
+
+(defn db-update-1
+  "Database update 1"
+  []
+  (mon/mongodb-insert-many
+    language-cname
+    [{ :code 1032, :english "Build uberjar", :serbian "Изгради uberjar" }])
+  (mon/mongodb-insert-one
+    db-updates-cname
+    {:update 1
+     :date (java.util.Date.)})
  )
 
 (defn initialize-db-if-needed
@@ -124,9 +202,13 @@
   []
   (try
     (when-not (mon/mongodb-exists
-                "language"
-                {:english "Save"})
+                db-updates-cname
+                {:initialized true})
       (initialize-db))
+    (when-not (mon/mongodb-exists
+                db-updates-cname
+                {:update 1})
+      (db-update-1))
     (catch Exception e
       (println e))
    ))
