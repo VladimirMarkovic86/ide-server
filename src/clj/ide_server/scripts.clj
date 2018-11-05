@@ -190,7 +190,9 @@
   []
   (mon/mongodb-insert-many
     language-cname
-    [{ :code 1032, :english "Build uberjar", :serbian "Изгради uberjar" }])
+    [{ :code 1032, :english "Build uberjar", :serbian "Изгради uberjar" }
+     { :code 1033, :english "Application", :serbian "Апликација" }
+     { :code 1034, :english "Library", :serbian "Библиотека" }])
   (mon/mongodb-insert-one
     db-updates-cname
     {:update 1
