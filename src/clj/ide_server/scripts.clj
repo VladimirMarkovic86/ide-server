@@ -15,6 +15,8 @@
                                               role-mod-rname]]
             [ide-middle.role-names :refer [project-admin-rname
                                            project-mod-rname
+                                           task-admin-rname
+                                           task-mod-rname
                                            working-area-user-rname]]
             [common-middle.functionalities :as fns]
             [ide-middle.functionalities :as imfns]))
@@ -173,7 +175,7 @@
   (let [user-id (:_id
                   (mon/mongodb-find-one
                     user-cname
-                    {}))]
+                    {:username "admin"}))]
     (mon/mongodb-insert-one
       preferences-cname
       {:user-id user-id
@@ -192,10 +194,77 @@
     language-cname
     [{ :code 1032, :english "Build uberjar", :serbian "Изгради uberjar" }
      { :code 1033, :english "Application", :serbian "Апликација" }
-     { :code 1034, :english "Library", :serbian "Библиотека" }])
+     { :code 1034, :english "Library", :serbian "Библиотека" }
+     ])
   (mon/mongodb-insert-one
     db-updates-cname
     {:update 1
+     :date (java.util.Date.)})
+ )
+
+(defn db-update-2
+  "Database update 2"
+  []
+  (mon/mongodb-insert-many
+    language-cname
+    [{ :code 1035, :english "Task code", :serbian "Код задатка" }
+     { :code 1036, :english "Description", :serbian "Опис" }
+     { :code 1037, :english "Type", :serbian "Тип" }
+     { :code 1038, :english "Priority", :serbian "Приоритет" }
+     { :code 1039, :english "Difficulty", :serbian "Тежина" }
+     { :code 1040, :english "Status", :serbian "Статус" }
+     { :code 1041, :english "Estimated time", :serbian "Процена времена" }
+     { :code 1042, :english "Time taken", :serbian "Потрошено времена" }
+     { :code 1043, :english "Task", :serbian "Задатак" }
+     { :code 1044, :english "Bug", :serbian "Грешка" }
+     { :code 1045, :english "New functionality", :serbian "Нова функционалност" }
+     { :code 1046, :english "Refactoring", :serbian "Рефакторисање" }
+     { :code 1047, :english "Low", :serbian "Низак" }
+     { :code 1048, :english "Medium", :serbian "Средњи" }
+     { :code 1049, :english "High", :serbian "Висок" }
+     { :code 1050, :english "Easy", :serbian "Лако" }
+     { :code 1051, :english "Medium", :serbian "Средња" }
+     { :code 1052, :english "Hard", :serbian "Тешко" }
+     { :code 1053, :english "Open", :serbian "Отворен" }
+     { :code 1054, :english "Development", :serbian "Развој" }
+     { :code 1055, :english "Deployed", :serbian "Отпремљено" }
+     { :code 1056, :english "Testing", :serbian "Тестирање" }
+     { :code 1057, :english "Rejected", :serbian "Одбијено" }
+     { :code 1058, :english "Done", :serbian "Готово" }
+     ])
+  (mon/mongodb-insert-many
+    role-cname
+    [{:role-name task-admin-rname
+      :functionalities [imfns/task-create
+                        imfns/task-read
+                        imfns/task-update
+                        imfns/task-delete]}
+     {:role-name task-mod-rname
+      :functionalities [imfns/task-read
+                        imfns/task-update]}])
+  (let [user (mon/mongodb-find-one
+               user-cname
+               {:username "admin"})
+        task-admin-id (:_id
+                        (mon/mongodb-find-one
+                          role-cname
+                          {:role-name task-admin-rname}))
+        user (update-in
+               user
+               [:roles]
+               conj
+               task-admin-id)
+        user-id (:_id user)
+        user (dissoc
+               user
+               :_id)]
+    (mon/mongodb-update-by-id
+      user-cname
+      user-id
+      user))
+  (mon/mongodb-insert-one
+    db-updates-cname
+    {:update 2
      :date (java.util.Date.)})
  )
 
@@ -211,6 +280,10 @@
                 db-updates-cname
                 {:update 1})
       (db-update-1))
+    (when-not (mon/mongodb-exists
+                db-updates-cname
+                {:update 2})
+      (db-update-2))
     (catch Exception e
       (println e))
    ))
