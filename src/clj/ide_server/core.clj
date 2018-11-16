@@ -12,10 +12,12 @@
             [ide-middle.functionalities :as imfns]
             [ide-middle.request-urls :as irurls]
             [ide-middle.project.entity :as pem]
+            [ide-middle.collection-names :refer [project-cname]]
             [common-server.core :as rt]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
             [clojure.string :as cstring]
+            [clojure.set :as cset]
             [audit-lib.core :refer [audit]])
   (:import [java.io FileNotFoundException]))
 
@@ -703,38 +705,6 @@
               :data {:out @status}})})
  )
 
-(defn git-project
-  "Interact with project with git commands"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
-        entity-type (:entity-type request-body)
-        action (:action request-body)
-        {group-id :group-id
-         artifact-id :artifact-id
-         version :version
-         absolute-path :absolute-path
-         language :language
-         project-type :project-type} (mon/mongodb-find-by-id
-                                       entity-type
-                                       entity-id)
-        output (execute-shell-command
-                 [(str
-                    "cd " absolute-path)
-                  (str
-                    "git " action )])]
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :heading (str
-                         "Git "
-                         (project-name
-                           group-id
-                           artifact-id
-                           version))
-              :data output})})
- )
-
 (defn git-status
   "Check git status of project"
   [root-dir]
@@ -844,6 +814,394 @@
                     "cd " root-dir)
                   "git diff"])]
     output))
+
+(defn git-diff-fn
+  "Output git diff for multiple absolute paths"
+  [request-body]
+  (let [absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [changed-files (git-status
+                            absolute-path)
+            [absolute-path
+             changed-files] (if (cstring/index-of
+                                  (:err changed-files)
+                                  "Not a directory")
+                             (let [last-slash-index (cstring/last-index-of
+                                                      absolute-path
+                                                      "/")
+                                   absolute-path-part1 (.substring
+                                                         absolute-path
+                                                         0
+                                                         last-slash-index)
+                                   absolute-path-part2 (.substring
+                                                         absolute-path
+                                                         (inc
+                                                           last-slash-index)
+                                                         (count
+                                                           absolute-path))]
+                               [absolute-path-part1
+                                [(str
+                                   "   "
+                                   absolute-path-part2)]])
+                            [absolute-path
+                             (cstring/split
+                               (:out changed-files)
+                               #"\n")])]
+        (doseq [changed-file changed-files]
+          (when-not (cstring/index-of
+                      changed-file
+                      "../")
+            (let [changed-file (.substring
+                                 changed-file
+                                 3
+                                 (count
+                                   changed-file))
+                  diff-output (execute-shell-command
+                                [(str
+                                   "cd " absolute-path)
+                                 (str
+                                   "git diff " changed-file)])
+                  diff-output (:out diff-output)
+                  file-name (cstring/split
+                              changed-file
+                              #"/")
+                  file-name (last
+                              file-name)
+                  file-name (str
+                              file-name
+                              "_diff")]
+              (when-not (empty?
+                          diff-output)
+                (swap!
+                  result
+                  conj
+                  [(str
+                     absolute-path
+                     "/"
+                     changed-file
+                     "_diff")
+                   file-name
+                   diff-output]))
+             ))
+         ))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"
+              :files-diffs @result})})
+ )
+
+(defn git-log-fn
+  "Output git log for multiple absolute paths"
+  [request-body]
+  (let [absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [output (execute-shell-command
+                     [(str
+                        "cd " absolute-path)
+                      "git log"])
+            out (:out output)
+            file-name (last
+                        (cstring/split
+                          absolute-path
+                          #"/"))
+            file-name (str
+                        file-name
+                        ".commit_log")]
+        (swap!
+          result
+          conj
+          [(str
+             absolute-path
+             ".commit_log")
+           file-name
+           out]))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"
+              :files-logs @result})})
+ )
+
+(defn git-unpushed-fn
+  "Output git log for multiple absolute paths"
+  [request-body]
+  (let [absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [output (execute-shell-command
+                     [(str
+                        "cd " absolute-path)
+                      "git log origin/master..HEAD --oneline"])
+            out (:out output)
+            file-name (last
+                        (cstring/split
+                          absolute-path
+                          #"/"))
+            file-name (str
+                        file-name
+                        ".commit_log")]
+        (swap!
+          result
+          conj
+          [(str
+             absolute-path
+             ".commit_log")
+           file-name
+           out]))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"
+              :files-unpushed @result})})
+ )
+
+(defn git-commit-push-fn
+  "Output git diff for multiple absolute paths"
+  [request-body]
+  (let [absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [changed-files (git-status
+                            absolute-path)
+            [absolute-path
+             changed-files] (if (cstring/index-of
+                                  (:err changed-files)
+                                  "Not a directory")
+                              (let [last-slash-index (cstring/last-index-of
+                                                       absolute-path
+                                                       "/")
+                                    absolute-path-part1 (.substring
+                                                          absolute-path
+                                                          0
+                                                          last-slash-index)
+                                    absolute-path-part2 (.substring
+                                                          absolute-path
+                                                          (inc
+                                                            last-slash-index)
+                                                          (count
+                                                            absolute-path))
+                                    output (execute-shell-command
+                                             [(str
+                                                "cd " absolute-path-part1)
+                                              (str
+                                                "git status -s " absolute-path-part2)])
+                                    status-out (:out output)]
+                                (when-not (empty?
+                                            status-out)
+                                  [absolute-path-part1
+                                   [status-out]]))
+                              [absolute-path
+                               (cstring/split
+                                 (:out changed-files)
+                                 #"\n")])]
+        (doseq [changed-file changed-files]
+          (when-not (cstring/index-of
+                      changed-file
+                      "../")
+            (let [type-of-change (.substring
+                                   changed-file
+                                   0
+                                   3)
+                  mad (.substring
+                        type-of-change
+                        0
+                        1)
+                  md (.substring
+                       type-of-change
+                       1
+                       2)
+                  action (if-not (= mad
+                                    " ")
+                           mad
+                           md)
+                  checked (= md
+                             " ")
+                  changed-file (.substring
+                                 changed-file
+                                 3
+                                 (count
+                                   changed-file))
+                  diff-output (execute-shell-command
+                                [(str
+                                   "cd " absolute-path)
+                                 (str
+                                   "git status -s " changed-file)])
+                  diff-output (:out diff-output)
+                  ]
+              (when-not (empty?
+                          diff-output)
+                (swap!
+                  result
+                  conj
+                  [absolute-path
+                   changed-file
+                   checked
+                   action]))
+             ))
+         ))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"
+              :changed-files @result})})
+ )
+
+(defn git-commit-push-action-fn
+  "Execute commit push command"
+  [request-body]
+  (try
+    (let [root-paths (:root-paths request-body)
+          commit-message (:commit-message request-body)
+          action (:action request-body)
+          changed-root-paths (atom #{})]
+      (doseq [root-path root-paths]
+        (let [git-status-output (execute-shell-command
+                                  [(str
+                                     "cd " root-path)
+                                   "git status -s"])
+              out (:out git-status-output)]
+          (when-not (empty?
+                      out)
+            (let [changed-files (cstring/split
+                                  out
+                                  #"\n")
+                  is-changed ((fn [index]
+                                (when (< index
+                                         (count
+                                           changed-files))
+                                  (let [element (get
+                                                  changed-files
+                                                  index)
+                                        md (.substring
+                                             element
+                                             1
+                                             2)
+                                        is-added-rm (= md
+                                                       " ")]
+                                    (if is-added-rm
+                                      true
+                                      (recur
+                                        (inc
+                                          index))
+                                     ))
+                                 ))
+                              0)]
+              (when is-changed
+                (swap!
+                  changed-root-paths
+                  conj
+                  root-path))
+             ))
+         ))
+      (when (= pem/git-commit
+               action)
+        (doseq [root-path @changed-root-paths]
+          (execute-shell-command
+            [(str
+               "cd " root-path)
+             (str
+               "git commit -m \""
+               commit-message
+               "\"")]))
+       )
+      (when (= pem/git-commit-push
+               action)
+        (doseq [root-path @changed-root-paths]
+          (execute-shell-command
+            [(str
+               "cd " root-path)
+             (str
+               "git commit -m '"
+               commit-message
+               "'")
+             "git push origin master"]))
+       )
+      (when (= pem/git-push
+               action)
+        (doseq [root-path @changed-root-paths]
+          (execute-shell-command
+            [(str
+               "cd " root-path)
+             "git push origin master"]))
+       ))
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:success "success"})}
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:success "error"
+                :message (.getMessage e)})}
+     ))
+ )
+
+(defn git-file-change-state-fn
+  "Change file state in git add, remove or reset"
+  [request-body]
+  (try
+    (let [{action :action
+           absolute-path :absolute-path
+           changed-file :changed-file} request-body]
+      (when (= action
+               pem/git-add)
+        (execute-shell-command
+          [(str
+             "cd " absolute-path)
+           (str
+             "git add " changed-file)])
+       )
+      (when (= action
+               pem/git-rm)
+        (execute-shell-command
+          [(str
+             "cd " absolute-path)
+           (str
+             "git rm " changed-file)])
+       )
+      (when (= action
+               pem/git-reset)
+        (execute-shell-command
+          [(str
+             "cd " absolute-path)
+           (str
+             "git reset " changed-file)])
+       )
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:success "success"})})
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:success "error"
+                :message (.getMessage e)})}
+     ))
+ )
+
+(defn git-status-fn
+  ""
+  [request-body]
+  (let [absolute-path (:dir-path request-body)
+        git-status-output (git-status
+                            absolute-path)]
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"
+              :data git-status-output})}
+   ))
 
 (defn git-project
   "Interact with project with git commands"
@@ -1008,6 +1366,410 @@
      ))
  )
 
+(defn project-clj-into-map
+  "Makes clojure map out of project.clj file content"
+  [file-path]
+  (try
+    (let [project-map (atom {})
+          project-seq (rest
+                        (read-string
+                          (slurp
+                            file-path))
+                       )
+          project-name (first
+                         project-seq)
+          project-seq (rest
+                        project-seq)
+          project-version (first
+                            project-seq)
+          project-seq (rest
+                        project-seq)
+          seq-key (atom nil)
+          seq-val (atom nil)]
+      (swap!
+        project-map
+        assoc
+        :project
+        (str
+          project-name)
+        :version
+        project-version)
+      (doseq [seq-el project-seq]
+        (when (and @seq-key
+                   (not @seq-val))
+          (reset!
+            seq-val
+            seq-el))
+        (when-not @seq-key
+          (reset!
+            seq-key
+            seq-el))
+        (when (and @seq-key
+                   @seq-val)
+          (swap!
+            project-map
+            assoc
+            @seq-key
+            @seq-val)
+          (reset!
+            seq-key
+            nil)
+          (reset!
+            seq-val
+            nil))
+       )
+      @project-map)
+    (catch Exception e
+      (println (.getMessage e))
+      {}))
+ )
+
+(defn project-dependency-tree
+  "Reads project.clj file on passed absolute-path parameter, and makes clojure map of it,
+   and follows dependency tree to its core"
+  [absolute-path]
+  (try
+    (let [project-clj (project-clj-into-map
+                        (str
+                          absolute-path
+                          "/project.clj"))
+          project-name (:project
+                         project-clj)
+          project-version (:version
+                            project-clj)
+          projects-vector (mon/mongodb-find
+                            project-cname)
+          result (atom #{})]
+      (doseq [{absolute-path-dep :absolute-path} projects-vector]
+        (when-not (= absolute-path-dep
+                     absolute-path)
+          (let [dep-project-clj (project-clj-into-map
+                                  (str
+                                    absolute-path-dep
+                                    "/project.clj"))
+                dependent-project-name (:project
+                                         dep-project-clj)
+                dependent-project-version (:version
+                                            dep-project-clj)
+                dependencies-seq (:dependencies
+                                   dep-project-clj)]
+            (doseq [[project-name-dep
+                     project-version-dep] dependencies-seq]
+              (let [project-name-dep (str
+                                       project-name-dep)]
+                (when (= project-name-dep
+                         project-name)
+                  (swap!
+                    result
+                    conj
+                    {:project-name project-name
+                     :project-version project-version
+                     :dependency-used-version project-version-dep
+                     :project-new-version ""
+                     :dependent-project-name dependent-project-name
+                     :dependent-project-version dependent-project-version
+                     :dependent-project-absolute-path absolute-path-dep
+                     :down-to-base (project-dependency-tree
+                                     absolute-path-dep)}))
+               ))
+           ))
+       )
+      @result)
+    (catch Exception e
+      (println (.getMessage e))
+      #{}))
+ )
+
+(defn down-to-base-fn
+  "Updates result-set function parameter by accumulating dependencies,
+   for particular project, which version should be updated"
+  [down-to-base-param
+   result-set]
+  (when-not (empty?
+              down-to-base-param)
+    (doseq [{project-name :project-name
+             project-version :project-version
+             dependency-used-version :dependency-used-version
+             project-new-version :project-new-version
+             dependent-project-name :dependent-project-name
+             dependent-project-version :dependent-project-version
+             dependent-project-absolute-path :dependent-project-absolute-path
+             down-to-base :down-to-base} down-to-base-param]
+      (if (contains?
+            @result-set
+            {:project dependent-project-name})
+        (let [selected-project (cset/select
+                                 (fn [element]
+                                   (= dependent-project-name
+                                      (:project element))
+                                  )
+                                 @result-set)
+              selected-project (first selected-project)
+              debug (swap!
+                      result-set
+                      disj
+                      {:project dependent-project-name})
+              dependencies (:dependencies
+                             selected-project)
+              dependencies (conj
+                             dependencies
+                             {:project project-name
+                              :version project-version
+                              :actual-version dependency-used-version})
+              selected-project (assoc
+                                 selected-project
+                                 :dependencies
+                                 dependencies)]
+          (swap!
+            result-set
+            conj
+            selected-project))
+        (swap!
+          result-set
+          conj
+          {:project dependent-project-name
+           :version dependent-project-version
+           :dependencies (sorted-set-by
+                           (fn [{project1 :project}
+                                {project2 :project}]
+                             (compare
+                               project1
+                               project2))
+                           {:project project-name
+                            :version project-version
+                            :actual-version dependency-used-version})})
+       )
+      (down-to-base-fn
+        down-to-base
+        result-set))
+   ))
+
+(defn versioning-project-concrete
+  "Returns list of projects where version and dependencies
+   should be changed and up to date, only for one project"
+  [entity-id
+   entity-type]
+  (let [project-ent (mon/mongodb-find-by-id
+                      entity-type
+                      entity-id)
+        absolute-path (:absolute-path project-ent)
+        result (project-dependency-tree
+                 absolute-path)
+        result-set (atom
+                     (sorted-set-by
+                       (fn [{project-1 :project}
+                            {project-2 :project}]
+                         (compare
+                           project-1
+                           project-2))
+                      ))]
+    (doseq [{project-name :project-name
+             project-version :project-version
+             dependency-used-version :dependency-used-version
+             project-new-version :project-new-version
+             dependent-project-name :dependent-project-name
+             dependent-project-version :dependent-project-version
+             dependent-project-absolute-path :dependent-project-absolute-path
+             down-to-base :down-to-base} result]
+      (if (contains?
+            @result-set
+            {:project dependent-project-name})
+        (let [selected-project (cset/select
+                                 (fn [element]
+                                   (= dependent-project-name
+                                      (:project element))
+                                  )
+                                 @result-set)
+              selected-project (first selected-project)
+              debug (swap!
+                      result-set
+                      disj
+                      {:project dependent-project-name})
+              dependencies (:dependencies
+                             selected-project)
+              dependencies (conj
+                             dependencies
+                             {:project project-name
+                              :version project-version
+                              :actual-version dependency-used-version})
+              selected-project (assoc
+                                 selected-project
+                                 :dependencies
+                                 dependencies)]
+          (swap!
+            result-set
+            conj
+            selected-project))
+        (swap!
+          result-set
+          conj
+          {:project dependent-project-name
+           :version dependent-project-version
+           :dependencies (sorted-set-by
+                           (fn [{project1 :project}
+                                {project2 :project}]
+                             (compare
+                               project1
+                               project2))
+                           {:project project-name
+                            :version project-version
+                            :actual-version dependency-used-version})})
+       )
+      (down-to-base-fn
+        down-to-base
+        result-set))
+    @result-set))
+
+(defn versioning-project
+  "Returns list of projects where version and dependencies
+   should be changed and up to date, for multiple projects"
+  [request-body]
+  (try
+    (let [entity-ids (:entity-ids request-body)
+          entity-type (:entity-type request-body)
+          result (atom [])
+          result-set (atom
+                       (sorted-set-by
+                         (fn [{project-1 :project}
+                              {project-2 :project}]
+                           (compare
+                             project-1
+                             project-2))
+                        ))
+          result-set-str (atom "")]
+      (doseq [entity-id entity-ids]
+        (swap!
+          result
+          conj
+          (versioning-project-concrete
+            entity-id
+            entity-type))
+       )
+      (doseq [project-results @result]
+        (doseq [project-result project-results]
+          (let [{dependent-project-name :project
+                 dependent-project-version :version
+                 dependent-dependecies :dependencies} project-result]
+            (if (contains?
+                  @result-set
+                  {:project dependent-project-name})
+              (let [selected-project (cset/select
+                                       (fn [element]
+                                         (= dependent-project-name
+                                            (:project element))
+                                        )
+                                       @result-set)
+                    selected-project (first selected-project)
+                    debug (swap!
+                            result-set
+                            disj
+                            {:project dependent-project-name})
+                    dependencies (atom
+                                   (:dependencies
+                                     selected-project))]
+                (doseq [dependent-dependency dependent-dependecies]
+                  (swap!
+                    dependencies
+                    conj
+                    dependent-dependency))                
+                (swap!
+                  result-set
+                  conj
+                  (assoc
+                    selected-project
+                    :dependencies
+                    @dependencies))
+               )
+              (swap!
+                result-set
+                conj
+                project-result))
+           ))
+       )
+      (doseq [{project :project
+               version :version
+               dependencies :dependencies} @result-set]
+        (swap!
+          result-set-str
+          str
+          "\n" project " " version "\n"
+          "dependencies:\n")
+        (doseq [{project :project
+                 version :version
+                 actual-version :actual-version} dependencies]
+          (swap!
+            result-set-str
+            str
+            project " " actual-version " -> " version "\n"))
+       )
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str {:status "success"
+                   :result (str
+                             @result-set-str)})}
+     )
+    (catch Exception e
+      (println (.getMessage e))
+      (println e)
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str {:status "error"
+                   :error-message (.getMessage e)})}
+     ))
+ )
+
+(defn projects-tree
+  ""
+  [request-body]
+  (try
+    (let [entity-type (:entity-type request-body)
+          entity-filter (:entity-filter request-body)
+          qsort (:qsort request-body)
+          db-result (mon/mongodb-find
+                      entity-type
+                      entity-filter
+                      nil
+                      qsort)
+          projects-a (atom
+                       [])]
+      (doseq [project-el db-result]
+        (let [{absolute-path :absolute-path} project-el
+              output (git-status
+                       absolute-path)]
+          (if (empty?
+                (:out
+                  output))
+            (swap!
+              projects-a
+              conj
+              (assoc
+                project-el
+                :changed
+                false))
+            (swap!
+              projects-a
+              conj
+              (assoc
+                project-el
+                :changed
+                true))
+           ))
+       )
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str {:status "success"
+                   :data @projects-a})})
+    (catch Exception e
+      (println (.getMessage e))
+      (println e)
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "Error"
+                :message (.getMessage e)})}
+     ))
+ )
+
 (defn response-routing-fn
   "Custom routing function"
   [request]
@@ -1089,12 +1851,52 @@
                 request))
           (= request-uri
              irurls/git-status-url)
-            (git-status
+            (git-status-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-diff-url)
+            (git-diff-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-log-url)
+            (git-log-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-unpushed-url)
+            (git-unpushed-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-commit-push-url)
+            (git-commit-push-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-file-change-state-url)
+            (git-file-change-state-fn
+              (parse-body
+                request))
+          (= request-uri
+             irurls/git-commit-push-action-url)
+            (git-commit-push-action-fn
               (parse-body
                 request))
           (= request-uri
              irurls/save-file-changes-url)
             (save-file-changes
+              (parse-body
+                request))
+          (= request-uri
+             irurls/versioning-project-url)
+            (versioning-project
+              (parse-body
+                request))
+          (= request-uri
+             irurls/projects-tree-url)
+            (projects-tree
               (parse-body
                 request))
           :else
@@ -1190,10 +1992,50 @@
               allowed-functionalities
               imfns/git-status)
           (= request-uri
+             irurls/git-diff-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-diff)
+          (= request-uri
+             irurls/git-log-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-log)
+          (= request-uri
+             irurls/git-unpushed-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-unpushed)
+          (= request-uri
+             irurls/git-commit-push-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-commit-push)
+          (= request-uri
+             irurls/git-file-change-state-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-file-change-state)
+          (= request-uri
+             irurls/git-commit-push-action-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-commit-push-action)
+          (= request-uri
              irurls/save-file-changes-url)
             (contains?
               allowed-functionalities
               imfns/save-file-changes)
+          (= request-uri
+             irurls/versioning-project-url)
+            (contains?
+              allowed-functionalities
+              imfns/versioning-project)
+          (= request-uri
+             irurls/projects-tree-url)
+            (contains?
+              allowed-functionalities
+              imfns/projects-tree)
           :else
             false)
       :else
@@ -1205,8 +2047,7 @@
   [request]
   (let [response (rt/routing
                    request
-                   (response-routing-fn
-                     request)
+                   response-routing-fn
                    (allow-action-routing-fn
                      request))]
     (audit

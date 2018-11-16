@@ -138,7 +138,16 @@
                         imfns/run-project
                         imfns/git-project
                         imfns/git-status
-                        imfns/save-file-changes]}])
+                        imfns/git-diff
+                        imfns/git-log
+                        imfns/git-unpushed
+                        imfns/git-commit-push
+                        imfns/git-file-change-state
+                        imfns/git-commit-push-action
+                        imfns/save-file-changes
+                        imfns/versioning-project
+                        imfns/projects-tree
+                        ]}])
   (let [user-admin-id (:_id
                         (mon/mongodb-find-one
                           role-cname
@@ -231,6 +240,15 @@
      { :code 1056, :english "Testing", :serbian "Тестирање" }
      { :code 1057, :english "Rejected", :serbian "Одбијено" }
      { :code 1058, :english "Done", :serbian "Готово" }
+     { :code 1059, :english "Versioning", :serbian "Верзионисање" }
+     { :code 1060, :english "Commit", :serbian "Комитуј" }
+     { :code 1061, :english "Commit and push", :serbian "Комитуј и проследи" }
+     { :code 1062, :english "Push", :serbian "Проследи" }
+     { :code 1063, :english "Commit message", :serbian "Комит порука" }
+     { :code 1064, :english "Change differences", :serbian "Измењено" }
+     { :code 1065, :english "Unpushed commits", :serbian "Не прослеђени комитови" }
+     { :code 1066, :english "Set remote", :serbian "Постави удаљени" }
+     { :code 1067, :english "Log", :serbian "Лог" }
      ])
   (mon/mongodb-insert-many
     role-cname
