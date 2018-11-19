@@ -2048,8 +2048,7 @@
   (let [response (rt/routing
                    request
                    response-routing-fn
-                   (allow-action-routing-fn
-                     request))]
+                   allow-action-routing-fn)]
     (audit
       request
       response)

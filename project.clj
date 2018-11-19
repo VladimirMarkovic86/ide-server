@@ -11,7 +11,7 @@
                  [org.clojars.vladimirmarkovic86/session-lib "0.2.2"]
                  [org.clojars.vladimirmarkovic86/ide-middle "0.2.2"]
                  [org.clojars.vladimirmarkovic86/common-middle "0.2.1"]
-                 [org.clojars.vladimirmarkovic86/common-server "0.3.4"]
+                 [org.clojars.vladimirmarkovic86/common-server "0.3.5"]
                  [org.clojars.vladimirmarkovic86/audit-lib "0.1.3"]
                  ]
 
