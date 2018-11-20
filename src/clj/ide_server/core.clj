@@ -1908,7 +1908,7 @@
                   response-result
                   str
                   "file: " sub-file "\n"
-                  "line: "line-num "\n"
+                  "line: " line-num "\n"
                   (.substring
                     @file-content-a
                     start-index
