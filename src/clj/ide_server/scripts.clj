@@ -146,6 +146,7 @@
                         imfns/git-commit-push-action
                         imfns/save-file-changes
                         imfns/versioning-project
+                        imfns/find-text-in-files
                         imfns/projects-tree
                         ]}])
   (let [user-admin-id (:_id
@@ -249,6 +250,8 @@
      { :code 1065, :english "Unpushed commits", :serbian "Не прослеђени комитови" }
      { :code 1066, :english "Set remote", :serbian "Постави удаљени" }
      { :code 1067, :english "Log", :serbian "Лог" }
+     { :code 1068, :english "Find in file", :serbian "Нађи у фајлу" }
+     { :code 1069, :english "Find", :serbian "Пронађи" }
      ])
   (mon/mongodb-insert-many
     role-cname

@@ -18,7 +18,8 @@
             [clojure.java.shell :refer [sh]]
             [clojure.string :as cstring]
             [clojure.set :as cset]
-            [audit-lib.core :refer [audit]])
+            [audit-lib.core :refer [audit]]
+            [utils-lib.core :as utils])
   (:import [java.io FileNotFoundException]))
 
 (def db-uri
@@ -1718,8 +1719,227 @@
      ))
  )
 
+(defn is-file-extension-supported?
+  "Returns true if file extension is supported"
+  [doc-name]
+  (let [ext-types ["clj"
+                   "cljc"
+                   "cljs"
+                   "html"
+                   "css"]
+        is-supproted ((fn [index]
+                        (when (< index
+                                 (count
+                                   ext-types))
+                          (let [ext-type (get
+                                           ext-types
+                                           index)
+                                ext-start-index (if (<= (count
+                                                          doc-name)
+                                                        (count
+                                                          ext-type))
+                                                  0
+                                                  (- (count
+                                                       doc-name)
+                                                     (count
+                                                       ext-type))
+                                                 )
+                                ext-end-index (count
+                                                doc-name)
+                                extension (.substring
+                                            doc-name
+                                            ext-start-index
+                                            ext-end-index)]
+                            (if (= ext-type
+                                   extension)
+                              true
+                              (recur
+                                (inc
+                                  index))
+                             ))
+                         ))
+                       0)]
+    is-supproted))
+
+(defn iterate-into-depth
+  "Iterate into depth to find supproted files"
+  [absolute-paths
+   sub-files]
+  (doseq [absolute-path absolute-paths]
+    (let [ls-out (execute-shell-command
+                   [(str
+                      "ls -al " absolute-path)])
+          ls-out (:out ls-out)
+          ls-out (clojure.string/split
+                   ls-out
+                   #"\n")
+          sub-dirs (atom [])
+          sub-files (or sub-files
+                        (atom []))
+          parse-doc-name (fn [line]
+                           (let [separators-count (atom 0)
+                                 previous-char (atom nil)
+                                 doc-name (atom "")]
+                             (doseq [c-char line]
+                               (when (> @separators-count
+                                        7)
+                                 (swap!
+                                   doc-name
+                                   str
+                                   c-char))
+                               (when (and (= c-char
+                                             \space)
+                                          (not= @previous-char
+                                                \space))
+                                 (swap!
+                                   separators-count
+                                   inc))
+                               (reset!
+                                 previous-char
+                                 c-char))
+                             @doc-name))]
+      (doseq [document-ls-line ls-out]
+        (let [doc-name (parse-doc-name
+                         document-ls-line)]
+          (when-not (contains?
+                      #{"."
+                        ".."
+                        ""
+                        "target"
+                        ".git"}
+                      doc-name)
+            (if (= (first
+                     document-ls-line)
+                   \d)
+              (swap!
+                sub-dirs
+                conj
+                (str
+                  absolute-path
+                  "/"
+                  doc-name))
+              (when (is-file-extension-supported?
+                      doc-name)
+                (if (= (first
+                         doc-name)
+                       \/)
+                  (swap!
+                    sub-files
+                    conj
+                    doc-name)
+                  (swap!
+                    sub-files
+                    conj
+                    (str
+                      absolute-path
+                      "/"
+                      doc-name))
+                 ))
+             ))
+         ))
+      (iterate-into-depth
+        @sub-dirs
+        sub-files))
+   )
+  @sub-files)
+
+(defn find-text-in-files-fn
+  "Find given text in selected files or in absolute-paths of particular file types
+   .clj, .cljc, .cljs"
+  [request-body]
+  (try
+    (let [absolute-paths (:absolute-paths request-body)
+          find-this-text (:find-this-text request-body)
+          sub-files (iterate-into-depth
+                      absolute-paths
+                      (atom []))
+          response-result (atom "")]
+      (doseq [sub-file sub-files]
+        (let [file-content (slurp
+                             (clojure.java.io/file
+                               sub-file))
+              file-content-a (atom
+                               file-content)
+              index-of-a (atom
+                           -1)]
+          (while @index-of-a
+            (when (not= -1
+                        @index-of-a)
+              (let [start-index (if (< @index-of-a
+                                       30)
+                                  0
+                                  (- @index-of-a
+                                     30))
+                    end-index (if (< (+ @index-of-a
+                                        30)
+                                     (count
+                                       @file-content-a))
+                                (+ @index-of-a
+                                   30)
+                                (count
+                                  @file-content-a))
+                    splited-text (utils/split-with-newline
+                                   @file-content-a)
+                    count-chars (atom 0)
+                    line-num ((fn [index]
+                                (when (< index
+                                         (count
+                                           splited-text))
+                                  (let [row-text (get
+                                                   splited-text
+                                                   index)
+                                        row-length (count
+                                                     row-text)]
+                                    (swap!
+                                      count-chars
+                                      +
+                                      row-length)
+                                    (if (< @index-of-a
+                                           @count-chars)
+                                      (inc
+                                        index)
+                                      (recur
+                                        (inc
+                                          index))
+                                     ))
+                                 ))
+                               0)]
+                (swap!
+                  response-result
+                  str
+                  "file: " sub-file "\n"
+                  "line: "line-num "\n"
+                  (.substring
+                    @file-content-a
+                    start-index
+                    end-index) "\n"))
+             )
+            (reset!
+              index-of-a
+              (clojure.string/index-of
+                @file-content-a
+                find-this-text
+                (inc
+                  @index-of-a))
+             ))
+         ))
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "success"
+                :result @response-result})})
+    (catch Exception e
+      (println e)
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "error"
+                :error-message (.getMessage e)})}
+     ))
+ )
+
 (defn projects-tree
-  ""
+  "Returns projects for project tree on front-end"
   [request-body]
   (try
     (let [entity-type (:entity-type request-body)
@@ -1895,6 +2115,11 @@
               (parse-body
                 request))
           (= request-uri
+             irurls/find-text-in-files-url)
+            (find-text-in-files-fn
+              (parse-body
+                request))
+          (= request-uri
              irurls/projects-tree-url)
             (projects-tree
               (parse-body
@@ -2031,6 +2256,11 @@
             (contains?
               allowed-functionalities
               imfns/versioning-project)
+          (= request-uri
+             irurls/find-text-in-files-url)
+            (contains?
+              allowed-functionalities
+              imfns/find-text-in-files)
           (= request-uri
              irurls/projects-tree-url)
             (contains?
