@@ -1056,12 +1056,17 @@
 
 (defn git-commit-push-action-fn
   "Execute commit push command"
-  [request-body]
+  [websocket]
   (try
-    (let [root-paths (:root-paths request-body)
+    (let [{websocket-message :websocket-message
+           websocket-output-fn :websocket-output-fn} websocket
+          request-body (read-string
+                         websocket-message)
+          root-paths (:root-paths request-body)
           commit-message (:commit-message request-body)
           action (:action request-body)
-          changed-root-paths (atom #{})]
+          changed-root-paths (atom #{})
+          progress-value (atom 0)]
       (doseq [root-path root-paths]
         (let [git-status-output (execute-shell-command
                                   [(str
@@ -1101,6 +1106,10 @@
                   root-path))
              ))
          ))
+      (websocket-output-fn
+        (str
+          {:action "update-progress"
+           :progress-value 0}))
       (when (= pem/git-commit
                action)
         (doseq [root-path @changed-root-paths]
@@ -1110,7 +1119,20 @@
              (str
                "git commit -m \""
                commit-message
-               "\"")]))
+               "\"")])
+          (swap!
+            progress-value
+            inc)
+          (websocket-output-fn
+            (str
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
        )
       (when (= pem/git-commit-push
                action)
@@ -1122,7 +1144,20 @@
                "git commit -m '"
                commit-message
                "'")
-             "git push origin master"]))
+             "git push origin master"])
+          (swap!
+            progress-value
+            inc)
+          (websocket-output-fn
+            (str
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
        )
       (when (= pem/git-push
                action)
@@ -1130,21 +1165,36 @@
           (execute-shell-command
             [(str
                "cd " root-path)
-             "git push origin master"]))
-       ))
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:success "success"})}
+             "git push origin master"])
+          (swap!
+            progress-value
+            inc)
+          (websocket-output-fn
+            (str
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
+       )
+      (websocket-output-fn
+        (str
+          {:action "update-progress"
+           :progress-value 100}))
+      (websocket-output-fn
+        (str
+          {:status "close"})
+        -120))
     (catch Exception e
       (println (.getMessage e))
-      {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:success "error"
-                :message (.getMessage e)})}
-     ))
- )
+      ((:websocket-output-fn websocket)
+        (str
+          {:status "close"})
+        -120))
+   ))
 
 (defn git-file-change-state-fn
   "Change file state in git add, remove or reset"
@@ -1997,6 +2047,15 @@
          request-method :request-method} request]
     (cond
       (= request-method
+         "ws GET")
+        (cond
+          (= request-uri
+             irurls/git-commit-push-action-url)
+            (git-commit-push-action-fn
+              (:websocket request))
+          :else
+            nil)
+      (= request-method
          "POST")
         (cond
           (= request-uri
@@ -2100,11 +2159,6 @@
               (parse-body
                 request))
           (= request-uri
-             irurls/git-commit-push-action-url)
-            (git-commit-push-action-fn
-              (parse-body
-                request))
-          (= request-uri
              irurls/save-file-changes-url)
             (save-file-changes
               (parse-body
@@ -2138,6 +2192,16 @@
         {request-uri :request-uri
          request-method :request-method} request]
     (cond
+      (= request-method
+         "ws GET")
+        (cond
+          (= request-uri
+             irurls/git-commit-push-action-url)
+            (contains?
+              allowed-functionalities
+              imfns/git-commit-push-action)
+          :else
+            false)
       (= request-method
          "POST")
         (cond
@@ -2242,11 +2306,6 @@
               allowed-functionalities
               imfns/git-file-change-state)
           (= request-uri
-             irurls/git-commit-push-action-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-commit-push-action)
-          (= request-uri
              irurls/save-file-changes-url)
             (contains?
               allowed-functionalities
@@ -2292,20 +2351,39 @@
           port (if port
                  (read-string
                    port)
-                 1604)]
+                 1604)
+          access-control-allow-origin #{"https://ide:8455"
+                                        "https://ide:1614"
+                                        "http://ide:1614"
+                                        "https://ide:1604"
+                                        "http://ide:1604"
+                                        "http://ide:8457"}
+          access-control-allow-origin (if (System/getenv "CLIENT_ORIGIN")
+                                        (conj
+                                          access-control-allow-origin
+                                          (System/getenv "CLIENT_ORIGIN"))
+                                        access-control-allow-origin)
+          access-control-map {(rsh/access-control-allow-origin) access-control-allow-origin
+                              (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
+                              (rsh/access-control-allow-credentials) true}
+          certificates {:keystore-file-path
+                         "certificate/ide_server.jks"
+                        :keystore-password
+                         "ultras12"}
+          certificates (when-not (System/getenv "CERTIFICATES")
+                         certificates)
+          thread-pool-size (System/getenv "THREAD_POOL_SIZE")]
+      (when thread-pool-size
+        (reset!
+          srvr/thread-pool-size
+          (read-string
+            thread-pool-size))
+       )
       (srvr/start-server
         routing
-        {(rsh/access-control-allow-origin) #{"https://ide:8455"
-                                             "https://ide:1614"
-                                             "http://ide:1614"
-                                             "http://ide:8457"}
-         (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
-         (rsh/access-control-allow-credentials) true}
+        access-control-map
         port
-        {:keystore-file-path
-          "certificate/ide_server.jks"
-         :keystore-password
-          "ultras12"}))
+        certificates))
     (mon/mongodb-connect
       db-uri
       db-name)
