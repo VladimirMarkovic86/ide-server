@@ -1675,97 +1675,339 @@
   "Returns list of projects where version and dependencies
    should be changed and up to date, for multiple projects"
   [request-body]
-  (try
-    (let [entity-ids (:entity-ids request-body)
-          entity-type (:entity-type request-body)
-          result (atom [])
-          result-set (atom
-                       (sorted-set-by
-                         (fn [{project-1 :project}
-                              {project-2 :project}]
-                           (compare
-                             project-1
-                             project-2))
-                        ))
-          result-set-str (atom "")]
-      (doseq [entity-id entity-ids]
-        (swap!
-          result
-          conj
-          (versioning-project-concrete
-            entity-id
-            entity-type))
-       )
-      (doseq [project-results @result]
-        (doseq [project-result project-results]
-          (let [{dependent-project-name :project
-                 dependent-project-version :version
-                 dependent-dependecies :dependencies} project-result]
-            (if (contains?
-                  @result-set
-                  {:project dependent-project-name})
-              (let [selected-project (cset/select
-                                       (fn [element]
-                                         (= dependent-project-name
-                                            (:project element))
-                                        )
-                                       @result-set)
-                    selected-project (first selected-project)
-                    debug (swap!
-                            result-set
-                            disj
-                            {:project dependent-project-name})
-                    dependencies (atom
-                                   (:dependencies
-                                     selected-project))]
-                (doseq [dependent-dependency dependent-dependecies]
-                  (swap!
-                    dependencies
-                    conj
-                    dependent-dependency))                
+  (let [entity-ids (:entity-ids request-body)
+        entity-type (:entity-type request-body)
+        result (atom [])
+        result-set (atom
+                     (sorted-set-by
+                       (fn [{project-1 :project}
+                            {project-2 :project}]
+                         (compare
+                           project-1
+                           project-2))
+                      ))]
+    (doseq [entity-id entity-ids]
+      (swap!
+        result
+        conj
+        (versioning-project-concrete
+          entity-id
+          entity-type))
+     )
+    (doseq [project-results @result]
+      (doseq [project-result project-results]
+        (let [{dependent-project-name :project
+               dependent-project-version :version
+               dependent-dependecies :dependencies} project-result]
+          (if (contains?
+                @result-set
+                {:project dependent-project-name})
+            (let [selected-project (cset/select
+                                     (fn [element]
+                                       (= dependent-project-name
+                                          (:project element))
+                                      )
+                                     @result-set)
+                  selected-project (first selected-project)
+                  debug (swap!
+                          result-set
+                          disj
+                          {:project dependent-project-name})
+                  dependencies (atom
+                                 (:dependencies
+                                   selected-project))]
+              (doseq [dependent-dependency dependent-dependecies]
                 (swap!
-                  result-set
+                  dependencies
                   conj
-                  (assoc
-                    selected-project
-                    :dependencies
-                    @dependencies))
-               )
+                  dependent-dependency))                
               (swap!
                 result-set
                 conj
-                project-result))
-           ))
-       )
-      (doseq [{project :project
-               version :version
-               dependencies :dependencies} @result-set]
-        (swap!
-          result-set-str
-          str
-          "\n" project " " version "\n"
-          "dependencies:\n")
-        (doseq [{project :project
-                 version :version
-                 actual-version :actual-version} dependencies]
-          (swap!
-            result-set-str
-            str
-            project " " actual-version " -> " version "\n"))
-       )
+                (assoc
+                  selected-project
+                  :dependencies
+                  @dependencies))
+             )
+            (swap!
+              result-set
+              conj
+              project-result))
+         ))
+     )
+    @result-set))
+
+(defn versioning-project-response
+  "Returns http response list of projects where version and dependencies
+   should be changed and up to date, for multiple projects"
+  [request-body]
+  (try
+    (let [result (versioning-project
+                   request-body)]
       {:status (stc/ok)
        :headers {(eh/content-type) (mt/text-plain)}
        :body (str {:status "success"
-                   :result (str
-                             @result-set-str)})}
-     )
+                   :result result})})
     (catch Exception e
       (println (.getMessage e))
-      (println e)
       {:status (stc/internal-server-error)
        :headers {(eh/content-type) (mt/text-plain)}
        :body (str {:status "error"
                    :error-message (.getMessage e)})}
+     ))
+ )
+
+(defn build-order-fn-recur
+  "Library project build order recursion"
+  [number-of-libraries
+   project-libraries
+   build-order
+   built-projects]
+  (when (< (count
+             @build-order)
+           number-of-libraries)
+    (doseq [project-library project-libraries]
+      (let [absolute-path (:absolute-path project-library)
+            project-clj (project-clj-into-map
+                          (str
+                            absolute-path
+                            "/project.clj"))
+            project-name (str
+                           (:project
+                             project-clj))
+            project-version (:version
+                              project-clj)
+            dependencies (:dependencies
+                           project-clj)
+            ready-to-build (atom true)]
+        (doseq [[dep-name
+                 dep-version] dependencies]
+          (when (and (clojure.string/index-of
+                       dep-name
+                       "org.clojars.vladimirmarkovic86/")
+                     (not
+                       (contains?
+                         @built-projects
+                         (str
+                           dep-name))
+                      ))
+            (reset!
+              ready-to-build
+              false))
+         )
+        (when (and @ready-to-build
+                   (not
+                     (contains?
+                       @built-projects
+                       project-name))
+               )
+          (swap!
+            build-order
+            conj
+            project-name)
+          (swap!
+            built-projects
+            conj
+            project-name))
+       ))
+    (recur
+      number-of-libraries
+      project-libraries
+      build-order
+      built-projects))
+ )
+
+(defn build-order-fn
+  "Library project build order"
+  []
+  (let [number-of-libraries (mon/mongodb-count
+                              "project"
+                              {:project-type "Library"})
+        project-libraries (mon/mongodb-find
+                            "project"
+                            {:project-type "Library"})
+        build-order (atom [])
+        built-projects (atom #{})]
+    (build-order-fn-recur
+      number-of-libraries
+      project-libraries
+      build-order
+      built-projects)
+    @build-order))
+
+(defn upgrade-versions
+  "Returns clojure vector with changed projects and their current versions"
+  [request-body]
+  (let [projects-with-dependencies (versioning-project
+                                     request-body)
+        build-order-vector (build-order-fn)
+        dependencies-set (atom
+                           (sorted-set-by
+                             (fn [{project-1 :project}
+                                  {project-2 :project}]
+                               (compare
+                                 project-1
+                                 project-2))
+                            ))
+        result (atom [])]
+    (doseq [{dependencies :dependencies} projects-with-dependencies]
+      (doseq [dependency dependencies]
+        (swap!
+          dependencies-set
+          conj
+          dependency))
+     )
+    (doseq [project build-order-vector]
+      (when (contains?
+              @dependencies-set
+              {:project project})
+        (swap!
+          result
+          conj
+          (get
+            @dependencies-set
+            {:project project}))
+       ))
+    @result))
+
+(defn upgrade-versions-response
+  "Returns http response with changed projects and their current versions"
+  [request-body]
+  (try
+    (let [result (upgrade-versions
+                   request-body)]
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "success"
+                :result result})})
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "error"
+                :error-message (.getMessage e)})}
+     ))
+ )
+
+(defn upgrade-versions-save
+  "Changed versions in projects and their dependencies"
+  [request-body]
+  (let [request-projects (:projects request-body)
+        all-projects (mon/mongodb-find
+                       "project")]
+    (doseq [{absolute-path :absolute-path} all-projects]
+      (let [file-path (str
+                        absolute-path
+                        "/project.clj")]
+        (doseq [{group-id :group-id
+                 artifact-id :artifact-id
+                 new-version :new-version} request-projects]
+          (let [file-content (slurp
+                               (clojure.java.io/file
+                                 file-path))
+                project-name (str
+                               group-id
+                               "/"
+                               artifact-id)
+                project-index (cstring/index-of
+                                file-content
+                                project-name)]
+            (when project-index
+              (let [project-index (+ project-index
+                                     (count
+                                       project-name))
+                    part-one (.substring
+                               file-content
+                               0
+                               project-index)
+                    part-two (.substring
+                               file-content
+                               project-index
+                               (count
+                                 file-content))
+                    [part-two1
+                     part-two2
+                     part-two3] (cstring/split
+                                  part-two
+                                  #"\""
+                                  3)
+                    changed-file-content (str
+                                           part-one
+                                           part-two1
+                                           "\"" new-version "\""
+                                           part-two3)]
+                (with-open [wr (io/writer
+                                 file-path)]
+                  (try
+                    (.write
+                      wr
+                      changed-file-content)
+                    (catch Exception e
+                      (println e))
+                   ))
+               ))
+           ))
+       ))
+   ))
+
+(defn upgrade-versions-save-response
+  "Changed versions in projects and their dependencies"
+  [request-body]
+  (try
+    (upgrade-versions-save
+      request-body)
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"})}
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "error"
+                :error-message (.getMessage e)})}
+     ))
+ )
+
+(defn upgrade-versions-build
+  "Build projects with changed versions"
+  [request-body]
+  (let [request-projects (:projects request-body)]
+    (doseq [{group-id :group-id
+             artifact-id :artifact-id
+             new-version :new-version} request-projects]
+      (let [{absolute-path :absolute-path} (mon/mongodb-find-one
+                                             "project"
+                                             {:group-id group-id
+                                              :artifact-id artifact-id})]
+        (execute-shell-command
+          [(str
+             "cd "
+             absolute-path)
+           "lein install"]))
+     ))
+ )
+
+(defn upgrade-versions-build-response
+  "Build projects with changed versions"
+  [request-body]
+  (try
+    (upgrade-versions-build
+      request-body)
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-plain)}
+     :body (str
+             {:status "success"})}
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "error"
+                :error-message (.getMessage e)})}
      ))
  )
 
@@ -2165,7 +2407,22 @@
                 request))
           (= request-uri
              irurls/versioning-project-url)
-            (versioning-project
+            (versioning-project-response
+              (parse-body
+                request))
+          (= request-uri
+             irurls/upgrade-versions-url)
+            (upgrade-versions-response
+              (parse-body
+                request))
+          (= request-uri
+             irurls/upgrade-versions-save-url)
+            (upgrade-versions-save-response
+              (parse-body
+                request))
+          (= request-uri
+             irurls/upgrade-versions-build-url)
+            (upgrade-versions-build-response
               (parse-body
                 request))
           (= request-uri
@@ -2315,6 +2572,21 @@
             (contains?
               allowed-functionalities
               imfns/versioning-project)
+          (= request-uri
+             irurls/upgrade-versions-url)
+            (contains?
+              allowed-functionalities
+              imfns/upgrade-versions)
+          (= request-uri
+             irurls/upgrade-versions-save-url)
+            (contains?
+              allowed-functionalities
+              imfns/upgrade-versions-save)
+          (= request-uri
+             irurls/upgrade-versions-build-url)
+            (contains?
+              allowed-functionalities
+              imfns/upgrade-versions-build)
           (= request-uri
              irurls/find-text-in-files-url)
             (contains?

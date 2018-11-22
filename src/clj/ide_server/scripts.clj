@@ -146,6 +146,9 @@
                         imfns/git-commit-push-action
                         imfns/save-file-changes
                         imfns/versioning-project
+                        imfns/upgrade-versions
+                        imfns/upgrade-versions-save
+                        imfns/upgrade-versions-build
                         imfns/find-text-in-files
                         imfns/projects-tree
                         ]}])
@@ -252,6 +255,7 @@
      { :code 1067, :english "Log", :serbian "Лог" }
      { :code 1068, :english "Find in file", :serbian "Нађи у фајлу" }
      { :code 1069, :english "Find", :serbian "Пронађи" }
+     { :code 1070, :english "Upgrade versions", :serbian "Надогради верзије" }
      ])
   (mon/mongodb-insert-many
     role-cname
