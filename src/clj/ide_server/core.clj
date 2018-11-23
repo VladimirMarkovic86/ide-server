@@ -1242,7 +1242,7 @@
  )
 
 (defn git-status-fn
-  ""
+  "HTTP response with git status command result on particular absolute path"
   [request-body]
   (let [absolute-path (:dir-path request-body)
         git-status-output (git-status
