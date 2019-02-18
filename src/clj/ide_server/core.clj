@@ -1821,11 +1821,11 @@
   "Library project build order"
   []
   (let [number-of-libraries (mon/mongodb-count
-                              "project"
-                              {:project-type "Library"})
+                              project-cname
+                              {:project-type pem/library})
         project-libraries (mon/mongodb-find
-                            "project"
-                            {:project-type "Library"})
+                            project-cname
+                            {:project-type pem/library})
         build-order (atom [])
         built-projects (atom #{})]
     (build-order-fn-recur
@@ -2627,8 +2627,12 @@
           access-control-allow-origin #{"https://ide:8455"
                                         "https://ide:1614"
                                         "http://ide:1614"
+                                        "https://192.168.1.86:1614"
+                                        "http://192.168.1.86:1614"
                                         "https://ide:1604"
                                         "http://ide:1604"
+                                        "https://192.168.1.86:1604"
+                                        "http://192.168.1.86:1604"
                                         "http://ide:8457"}
           access-control-allow-origin (if (System/getenv "CLIENT_ORIGIN")
                                         (conj
