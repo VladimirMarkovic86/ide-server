@@ -174,17 +174,18 @@
                            (clojure.string/split
                              file-path
                              #"/"))
-              make-link-at "/home/vladimir/workspace/clojurescript/projects/ide_client/resources/public/video/"]
+              make-link-at "/tmp/"
+              video-uri (str
+                          make-link-at
+                          video-link)]
           (execute-shell-command
             [(str
                "rm -rf "
-               make-link-at
-               video-link)
+               video-uri)
              (str
                "ln -s "
                file-path " "
-               make-link-at
-               video-link)])
+               video-uri)])
           (reset!
             headers
             {(eh/content-type) (mt/text-plain)})
@@ -203,6 +204,30 @@
        :body (str {:status "error"
                    :error-message (.getMessage e)})}
      ))
+ )
+
+(defn stream-video
+  "Stream video on GET request"
+  [request]
+  (let [file-name (get-in
+                    request
+                    [:request-get-params
+                     :name])
+        last-dot-index (cstring/last-index-of
+                         file-name
+                         ".")
+        extension (.substring
+                    file-name
+                    (inc
+                      last-dot-index))
+        file-path (str
+                    "/tmp/"
+                    file-name)]
+    (srvr/read-file
+      file-path
+      extension
+      request
+      true))
  )
 
 (defn list-documents-fn
@@ -2317,6 +2342,15 @@
          request-method :request-method} request]
     (cond
       (= request-method
+         "GET")
+        (cond
+          (= request-uri
+             "/video")
+            (stream-video
+              request)
+          :else
+            false)
+      (= request-method
          "ws GET")
         (cond
           (= request-uri
@@ -2477,6 +2511,16 @@
         {request-uri :request-uri
          request-method :request-method} request]
     (cond
+      (= request-method
+         "GET")
+        (cond
+          (= request-uri
+             "/video")
+            (contains?
+              allowed-functionalities
+              imfns/list-documents)
+          :else
+            false)
       (= request-method
          "ws GET")
         (cond
