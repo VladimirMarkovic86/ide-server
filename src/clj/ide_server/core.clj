@@ -140,8 +140,7 @@
               file-path))
          ))
       (when (contains?
-              #{"image"
-                "video"}
+              #{"image"}
               operation)
         (let [f (java.io.File. file-path)
               ary (byte-array (.length f))
@@ -165,6 +164,35 @@
             body
             ary))
        )
+      (when (contains?
+              #{"video"}
+              operation)
+        (let [last-dot-index (cstring/last-index-of
+                               file-path
+                               ".")
+              video-link (last
+                           (clojure.string/split
+                             file-path
+                             #"/"))
+              make-link-at "/home/vladimir/workspace/clojurescript/projects/ide_client/resources/public/video/"]
+          (execute-shell-command
+            [(str
+               "rm -rf "
+               make-link-at
+               video-link)
+             (str
+               "ln -s "
+               file-path " "
+               make-link-at
+               video-link)])
+          (reset!
+            headers
+            {(eh/content-type) (mt/text-plain)})
+          (reset!
+            body
+            (str
+              {:uri video-link}))
+         ))
       {:status (stc/ok)
        :headers @headers
        :body @body})
