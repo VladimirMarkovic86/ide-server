@@ -164,36 +164,6 @@
             body
             ary))
        )
-      (when (contains?
-              #{"video"}
-              operation)
-        (let [last-dot-index (cstring/last-index-of
-                               file-path
-                               ".")
-              video-link (last
-                           (clojure.string/split
-                             file-path
-                             #"/"))
-              make-link-at "/tmp/"
-              video-uri (str
-                          make-link-at
-                          video-link)]
-          (execute-shell-command
-            [(str
-               "rm -rf "
-               video-uri)
-             (str
-               "ln -s "
-               file-path " "
-               video-uri)])
-          (reset!
-            headers
-            {(eh/content-type) (mt/text-plain)})
-          (reset!
-            body
-            (str
-              {:uri video-link}))
-         ))
       {:status (stc/ok)
        :headers @headers
        :body @body})
@@ -209,20 +179,17 @@
 (defn stream-video
   "Stream video on GET request"
   [request]
-  (let [file-name (get-in
+  (let [file-path (get-in
                     request
                     [:request-get-params
-                     :name])
+                     :filepath])
         last-dot-index (cstring/last-index-of
-                         file-name
+                         file-path
                          ".")
         extension (.substring
-                    file-name
+                    file-path
                     (inc
-                      last-dot-index))
-        file-path (str
-                    "/tmp/"
-                    file-name)]
+                      last-dot-index))]
     (srvr/read-file
       file-path
       extension
@@ -2345,7 +2312,7 @@
          "GET")
         (cond
           (= request-uri
-             "/video")
+             irurls/video-url)
             (stream-video
               request)
           :else
@@ -2515,7 +2482,7 @@
          "GET")
         (cond
           (= request-uri
-             "/video")
+             irurls/video-url)
             (contains?
               allowed-functionalities
               imfns/list-documents)
