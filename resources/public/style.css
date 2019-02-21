@@ -1,0 +1,18 @@
+html,
+body {
+ height: 100%;
+ border: unset;
+ padding: unset;
+ margin: unset;
+}
+body {
+ display: grid;
+ align-content: center;
+ background-color: #08c;
+ color: white;
+ text-align: center;
+}
+h2:hover {
+ color: orangered;
+ cursor: default;
+}

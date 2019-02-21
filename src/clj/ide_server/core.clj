@@ -2678,6 +2678,11 @@
                                           access-control-allow-origin
                                           (System/getenv "CLIENT_ORIGIN"))
                                         access-control-allow-origin)
+          access-control-allow-origin (if (System/getenv "SERVER_ORIGIN")
+                                        (conj
+                                          access-control-allow-origin
+                                          (System/getenv "SERVER_ORIGIN"))
+                                        access-control-allow-origin)
           access-control-map {(rsh/access-control-allow-origin) access-control-allow-origin
                               (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
                               (rsh/access-control-allow-credentials) true}
