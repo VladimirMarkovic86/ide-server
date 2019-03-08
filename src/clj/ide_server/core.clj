@@ -4,11 +4,13 @@
             [server-lib.core :as srvr]
             [utils-lib.core :as utils :refer [parse-body]]
             [mongo-lib.core :as mon]
+            [ide-server.config :as config]
             [ide-server.scripts :as scripts]
             [ajax-lib.http.entity-header :as eh]
             [ajax-lib.http.response-header :as rsh]
             [ajax-lib.http.mime-type :as mt]
             [ajax-lib.http.status-code :as stc]
+            [ajax-lib.http.request-method :as rm]
             [ide-middle.functionalities :as imfns]
             [ide-middle.request-urls :as irurls]
             [ide-middle.project.entity :as pem]
@@ -18,16 +20,8 @@
             [clojure.java.shell :refer [sh]]
             [clojure.string :as cstring]
             [clojure.set :as cset]
-            [audit-lib.core :refer [audit]]
-            [utils-lib.core :as utils])
+            [audit-lib.core :refer [audit]])
   (:import [java.io FileNotFoundException]))
-
-(def db-uri
-     (or (System/getenv "PROD_MONGODB")
-         "mongodb://admin:passw0rd@127.0.0.1:27017/admin"))
-
-(def db-name
-     "ide-db")
 
 (def stopped
      "stopped")
@@ -110,8 +104,10 @@
 
 (defn execute-shell-command-fn
   "Execute shell command function with response"
-  [request-body]
-  (let [command (:command request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        command (:command request-body)
         output (execute-shell-command
                  command)]
     {:status (stc/ok)
@@ -122,9 +118,11 @@
 
 (defn read-file
   "Read file if supported and return it in response as entity body"
-  [request-body]
+  [request]
   (try
-    (let [file-path (:file-path request-body)
+    (let [request-body (parse-body
+                         request)
+          file-path (:file-path request-body)
           operation (:operation request-body)
           body (atom nil)
           headers (atom nil)]
@@ -199,8 +197,10 @@
 
 (defn list-documents-fn
   "List documents from dir-path"
-  [request-body]
-  (let [dir-path (:dir-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        dir-path (:dir-path request-body)
         output (execute-shell-command
                  (str
                    "ls -al " dir-path))]
@@ -212,8 +212,10 @@
 
 (defn mkdir-fn
   "Make directory in dir-path"
-  [request-body]
-  (let [dir-path (:dir-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        dir-path (:dir-path request-body)
         output (execute-shell-command
                  (str
                    "mkdir " dir-path))]
@@ -225,8 +227,10 @@
 
 (defn mkfile-fn
   "Make file in file-path"
-  [request-body]
-  (let [file-path (:file-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        file-path (:file-path request-body)
         output (execute-shell-command
                  (str
                    "touch " file-path))]
@@ -238,8 +242,10 @@
 
 (defn move-document-fn
   "Move document in dest-path"
-  [request-body]
-  (let [doc-path (:doc-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
         output (execute-shell-command
                  (str
@@ -252,8 +258,10 @@
 
 (defn copy-document-fn
   "Copy document in dest-path"
-  [request-body]
-  (let [doc-path (:doc-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
         output (execute-shell-command
                  (str
@@ -266,8 +274,10 @@
 
 (defn delete-document-fn
   "Delete document doc-path"
-  [request-body]
-  (let [doc-path (:doc-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        doc-path (:doc-path request-body)
         output (execute-shell-command
                  (str
                    "rm -rf " doc-path))]
@@ -291,8 +301,10 @@
 
 (defn build-project
   "Build project fetched by _id"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
          artifact-id :artifact-id
@@ -339,8 +351,10 @@
 
 (defn build-uberjar
   "Build uberjar fetched by _id"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
          artifact-id :artifact-id
@@ -371,8 +385,10 @@
 
 (defn build-project-dependencies
   "Build project dependencies by _id"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {m-group-id :group-id
          m-artifact-id :artifact-id
@@ -473,8 +489,10 @@
 
 (defn clean-project
   "Clean project by _id"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
          artifact-id :artifact-id
@@ -675,8 +693,10 @@
 
 (defn run-project
   "Interact with project wit start, stop, status and restart commands"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
          artifact-id :artifact-id
@@ -838,8 +858,10 @@
 
 (defn git-diff-fn
   "Output git diff for multiple absolute paths"
-  [request-body]
-  (let [absolute-paths (:absolute-paths request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        absolute-paths (:absolute-paths request-body)
         result (atom [])]
     (doseq [absolute-path absolute-paths]
       (let [changed-files (git-status
@@ -916,8 +938,10 @@
 
 (defn git-log-fn
   "Output git log for multiple absolute paths"
-  [request-body]
-  (let [absolute-paths (:absolute-paths request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        absolute-paths (:absolute-paths request-body)
         result (atom [])]
     (doseq [absolute-path absolute-paths]
       (let [output (execute-shell-command
@@ -950,8 +974,10 @@
 
 (defn git-unpushed-fn
   "Output git log for multiple absolute paths"
-  [request-body]
-  (let [absolute-paths (:absolute-paths request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        absolute-paths (:absolute-paths request-body)
         result (atom [])]
     (doseq [absolute-path absolute-paths]
       (let [output (execute-shell-command
@@ -984,8 +1010,10 @@
 
 (defn git-commit-push-fn
   "Output git diff for multiple absolute paths"
-  [request-body]
-  (let [absolute-paths (:absolute-paths request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        absolute-paths (:absolute-paths request-body)
         result (atom [])]
     (doseq [absolute-path absolute-paths]
       (let [changed-files (git-status
@@ -1076,151 +1104,155 @@
 
 (defn git-commit-push-action-fn
   "Execute commit push command"
-  [websocket]
-  (try
-    (let [{websocket-message :websocket-message
-           websocket-output-fn :websocket-output-fn} websocket
-          request-body (read-string
-                         websocket-message)
-          root-paths (:root-paths request-body)
-          commit-message (:commit-message request-body)
-          action (:action request-body)
-          changed-root-paths (atom #{})
-          progress-value (atom 0)]
-      (doseq [root-path root-paths]
-        (let [git-status-output (execute-shell-command
-                                  [(str
-                                     "cd " root-path)
-                                   "git status -s"])
-              out (:out git-status-output)]
-          (when-not (empty?
-                      out)
-            (let [changed-files (cstring/split
-                                  out
-                                  #"\n")
-                  is-changed ((fn [index]
-                                (when (< index
-                                         (count
-                                           changed-files))
-                                  (let [element (get
-                                                  changed-files
-                                                  index)
-                                        md (.substring
-                                             element
-                                             1
-                                             2)
-                                        is-added-rm (= md
-                                                       " ")]
-                                    (if is-added-rm
-                                      true
-                                      (recur
-                                        (inc
-                                          index))
-                                     ))
-                                 ))
-                              0)]
-              (when is-changed
-                (swap!
-                  changed-root-paths
-                  conj
-                  root-path))
+  [request]
+  (let [websocket (:websocket request)]
+    (try
+      (let [{websocket-message :websocket-message
+             websocket-output-fn :websocket-output-fn} websocket
+            request-body (read-string
+                           websocket-message)
+            root-paths (:root-paths request-body)
+            commit-message (:commit-message request-body)
+            action (:action request-body)
+            changed-root-paths (atom #{})
+            progress-value (atom 0)]
+        (doseq [root-path root-paths]
+          (let [git-status-output (execute-shell-command
+                                    [(str
+                                       "cd " root-path)
+                                     "git status -s"])
+                out (:out git-status-output)]
+            (when-not (empty?
+                        out)
+              (let [changed-files (cstring/split
+                                    out
+                                    #"\n")
+                    is-changed ((fn [index]
+                                  (when (< index
+                                           (count
+                                             changed-files))
+                                    (let [element (get
+                                                    changed-files
+                                                    index)
+                                          md (.substring
+                                               element
+                                               1
+                                               2)
+                                          is-added-rm (= md
+                                                         " ")]
+                                      (if is-added-rm
+                                        true
+                                        (recur
+                                          (inc
+                                            index))
+                                       ))
+                                   ))
+                                0)]
+                (when is-changed
+                  (swap!
+                    changed-root-paths
+                    conj
+                    root-path))
+               ))
+           ))
+        (websocket-output-fn
+          (str
+            {:action "update-progress"
+             :progress-value 0}))
+        (when (= pem/git-commit
+                 action)
+          (doseq [root-path @changed-root-paths]
+            (execute-shell-command
+              [(str
+                 "cd " root-path)
+               (str
+                 "git commit -m \""
+                 commit-message
+                 "\"")])
+            (swap!
+              progress-value
+              inc)
+            (websocket-output-fn
+              (str
+                {:action "update-progress"
+                 :progress-value (int
+                                   (/ (* @progress-value
+                                         100)
+                                      (count
+                                        @changed-root-paths))
+                                  )})
              ))
-         ))
-      (websocket-output-fn
-        (str
-          {:action "update-progress"
-           :progress-value 0}))
-      (when (= pem/git-commit
-               action)
-        (doseq [root-path @changed-root-paths]
-          (execute-shell-command
-            [(str
-               "cd " root-path)
-             (str
-               "git commit -m \""
-               commit-message
-               "\"")])
-          (swap!
-            progress-value
-            inc)
-          (websocket-output-fn
-            (str
-              {:action "update-progress"
-               :progress-value (int
-                                 (/ (* @progress-value
-                                       100)
-                                    (count
-                                      @changed-root-paths))
-                                )})
-           ))
-       )
-      (when (= pem/git-commit-push
-               action)
-        (doseq [root-path @changed-root-paths]
-          (execute-shell-command
-            [(str
-               "cd " root-path)
-             (str
-               "git commit -m '"
-               commit-message
-               "'")
-             "git push origin master"])
-          (swap!
-            progress-value
-            inc)
-          (websocket-output-fn
-            (str
-              {:action "update-progress"
-               :progress-value (int
-                                 (/ (* @progress-value
-                                       100)
-                                    (count
-                                      @changed-root-paths))
-                                )})
-           ))
-       )
-      (when (= pem/git-push
-               action)
-        (doseq [root-path @changed-root-paths]
-          (execute-shell-command
-            [(str
-               "cd " root-path)
-             "git push origin master"])
-          (swap!
-            progress-value
-            inc)
-          (websocket-output-fn
-            (str
-              {:action "update-progress"
-               :progress-value (int
-                                 (/ (* @progress-value
-                                       100)
-                                    (count
-                                      @changed-root-paths))
-                                )})
-           ))
-       )
-      (websocket-output-fn
-        (str
-          {:action "update-progress"
-           :progress-value 100}))
-      (websocket-output-fn
-        (str
-          {:status "close"})
-        -120))
-    (catch Exception e
-      (println (.getMessage e))
-      ((:websocket-output-fn websocket)
-        (str
-          {:status "close"})
-        -120))
-   ))
+         )
+        (when (= pem/git-commit-push
+                 action)
+          (doseq [root-path @changed-root-paths]
+            (execute-shell-command
+              [(str
+                 "cd " root-path)
+               (str
+                 "git commit -m '"
+                 commit-message
+                 "'")
+               "git push origin master"])
+            (swap!
+              progress-value
+              inc)
+            (websocket-output-fn
+              (str
+                {:action "update-progress"
+                 :progress-value (int
+                                   (/ (* @progress-value
+                                         100)
+                                      (count
+                                        @changed-root-paths))
+                                  )})
+             ))
+         )
+        (when (= pem/git-push
+                 action)
+          (doseq [root-path @changed-root-paths]
+            (execute-shell-command
+              [(str
+                 "cd " root-path)
+               "git push origin master"])
+            (swap!
+              progress-value
+              inc)
+            (websocket-output-fn
+              (str
+                {:action "update-progress"
+                 :progress-value (int
+                                   (/ (* @progress-value
+                                         100)
+                                      (count
+                                        @changed-root-paths))
+                                  )})
+             ))
+         )
+        (websocket-output-fn
+          (str
+            {:action "update-progress"
+             :progress-value 100}))
+        (websocket-output-fn
+          (str
+            {:status "close"})
+          -120))
+      (catch Exception e
+        (println (.getMessage e))
+        ((:websocket-output-fn websocket)
+          (str
+            {:status "close"})
+          -120))
+     ))
+ )
 
 (defn git-file-change-state-fn
   "Change file state in git add, remove or reset"
-  [request-body]
+  [request]
   (try
-    (let [{action :action
+    (let [request-body (parse-body
+                         request)
+          {action :action
            absolute-path :absolute-path
            changed-file :changed-file} request-body]
       (when (= action
@@ -1263,8 +1295,10 @@
 
 (defn git-status-fn
   "HTTP response with git status command result on particular absolute path"
-  [request-body]
-  (let [absolute-path (:dir-path request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        absolute-path (:dir-path request-body)
         git-status-output (git-status
                             absolute-path)]
     {:status (stc/ok)
@@ -1276,8 +1310,10 @@
 
 (defn git-project
   "Interact with project with git commands"
-  [request-body]
-  (let [entity-id (:entity-id request-body)
+  [request]
+  (let [request-body (parse-body
+                       request)
+        entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         action (:action request-body)
         new-git-remote-link (:new-git-remote-link request-body)
@@ -1409,9 +1445,11 @@
 
 (defn save-file-changes
   "Save file changes"
-  [request-body]
+  [request]
   (try
-    (let [file-path (:file-path request-body)
+    (let [request-body (parse-body
+                         request)
+          file-path (:file-path request-body)
           file-content (:file-content request-body)
           f (java.io.File.
               file-path)
@@ -1760,9 +1798,11 @@
 (defn versioning-project-response
   "Returns http response list of projects where version and dependencies
    should be changed and up to date, for multiple projects"
-  [request-body]
+  [request]
   (try
-    (let [result (versioning-project
+    (let [request-body (parse-body
+                         request)
+          result (versioning-project
                    request-body)]
       {:status (stc/ok)
        :headers {(eh/content-type) (mt/text-plain)}
@@ -1892,9 +1932,11 @@
 
 (defn upgrade-versions-response
   "Returns http response with changed projects and their current versions"
-  [request-body]
+  [request]
   (try
-    (let [result (upgrade-versions
+    (let [request-body (parse-body
+                         request)
+          result (upgrade-versions
                    request-body)]
       {:status (stc/ok)
        :headers {(eh/content-type) (mt/text-plain)}
@@ -1974,14 +2016,16 @@
 
 (defn upgrade-versions-save-response
   "Changed versions in projects and their dependencies"
-  [request-body]
+  [request]
   (try
-    (upgrade-versions-save
-      request-body)
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"})}
+    (let [request-body (parse-body
+                         request)]
+      (upgrade-versions-save
+        request-body)
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "success"})})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
@@ -2013,14 +2057,16 @@
 
 (defn upgrade-versions-build-response
   "Build projects with changed versions"
-  [request-body]
+  [request]
   (try
-    (upgrade-versions-build
-      request-body)
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"})}
+    (let [request-body (parse-body
+                         request)]
+      (upgrade-versions-build
+        request-body)
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-plain)}
+       :body (str
+               {:status "success"})})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
@@ -2158,9 +2204,11 @@
 (defn find-text-in-files-fn
   "Find given text in selected files or in absolute-paths of particular file types
    .clj, .cljc, .cljs"
-  [request-body]
+  [request]
   (try
-    (let [absolute-paths (:absolute-paths request-body)
+    (let [request-body (parse-body
+                         request)
+          absolute-paths (:absolute-paths request-body)
           find-this-text (:find-this-text request-body)
           sub-files (iterate-into-depth
                       absolute-paths
@@ -2252,9 +2300,11 @@
 
 (defn projects-tree
   "Returns projects for project tree on front-end"
-  [request-body]
+  [request]
   (try
-    (let [entity-type (:entity-type request-body)
+    (let [request-body (parse-body
+                         request)
+          entity-type (:entity-type request-body)
           entity-filter (:entity-filter request-body)
           qsort (:qsort request-body)
           db-result (mon/mongodb-find
@@ -2302,353 +2352,137 @@
      ))
  )
 
-(defn response-routing-fn
-  "Custom routing function"
-  [request]
-  (let [{request-uri :request-uri
-         request-method :request-method} request]
-    (cond
-      (= request-method
-         "GET")
-        (cond
-          (= request-uri
-             irurls/video-url)
-            (stream-video
-              request)
-          :else
-            false)
-      (= request-method
-         "ws GET")
-        (cond
-          (= request-uri
-             irurls/git-commit-push-action-url)
-            (git-commit-push-action-fn
-              (:websocket request))
-          :else
-            nil)
-      (= request-method
-         "POST")
-        (cond
-          (= request-uri
-             irurls/read-file-url)
-            (read-file
-              (parse-body
-                request))
-          (= request-uri
-             irurls/execute-shell-command-url)
-            (execute-shell-command-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/list-documents-url)
-            (list-documents-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/new-folder-url)
-            (mkdir-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/new-file-url)
-            (mkfile-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/move-document-url)
-            (move-document-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/copy-document-url)
-            (copy-document-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/delete-document-url)
-            (delete-document-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/build-project-url)
-            (build-project
-              (parse-body
-                request))
-          (= request-uri
-             irurls/build-uberjar-url)
-            (build-uberjar
-              (parse-body
-                request))
-          (= request-uri
-             irurls/build-project-dependencies-url)
-            (build-project-dependencies
-              (parse-body
-                request))
-          (= request-uri
-             irurls/clean-project-url)
-            (clean-project
-              (parse-body
-                request))
-          (= request-uri
-             irurls/run-project-url)
-            (run-project
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-project-url)
-            (git-project
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-status-url)
-            (git-status-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-diff-url)
-            (git-diff-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-log-url)
-            (git-log-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-unpushed-url)
-            (git-unpushed-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-commit-push-url)
-            (git-commit-push-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/git-file-change-state-url)
-            (git-file-change-state-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/save-file-changes-url)
-            (save-file-changes
-              (parse-body
-                request))
-          (= request-uri
-             irurls/versioning-project-url)
-            (versioning-project-response
-              (parse-body
-                request))
-          (= request-uri
-             irurls/upgrade-versions-url)
-            (upgrade-versions-response
-              (parse-body
-                request))
-          (= request-uri
-             irurls/upgrade-versions-save-url)
-            (upgrade-versions-save-response
-              (parse-body
-                request))
-          (= request-uri
-             irurls/upgrade-versions-build-url)
-            (upgrade-versions-build-response
-              (parse-body
-                request))
-          (= request-uri
-             irurls/find-text-in-files-url)
-            (find-text-in-files-fn
-              (parse-body
-                request))
-          (= request-uri
-             irurls/projects-tree-url)
-            (projects-tree
-              (parse-body
-                request))
-          :else
-            nil)
-      :else
-        nil))
- )
+(def logged-in-routing-set
+  (atom
+    #{{:method rm/GET
+       :uri irurls/video-url
+       :authorization imfns/list-documents
+       :action stream-video}
+      {:method rm/ws-GET
+       :uri irurls/git-commit-push-action-url
+       :authorization imfns/git-commit-push-action
+       :action git-commit-push-action-fn}
+      {:method rm/POST
+       :uri irurls/read-file-url
+       :authorization imfns/read-file
+       :action read-file}
+      {:method rm/POST
+       :uri irurls/execute-shell-command-url
+       :authorization imfns/execute-shell-command
+       :action execute-shell-command-fn}
+      {:method rm/POST
+       :uri irurls/list-documents-url
+       :authorization imfns/list-documents
+       :action list-documents-fn}
+      {:method rm/POST
+       :uri irurls/new-folder-url
+       :authorization imfns/new-folder
+       :action mkdir-fn}
+      {:method rm/POST
+       :uri irurls/new-file-url
+       :authorization imfns/new-file
+       :action mkfile-fn}
+      {:method rm/POST
+       :uri irurls/move-document-url
+       :authorization imfns/move-document
+       :action move-document-fn}
+      {:method rm/POST
+       :uri irurls/copy-document-url
+       :authorization imfns/copy-document
+       :action copy-document-fn}
+      {:method rm/POST
+       :uri irurls/delete-document-url
+       :authorization imfns/delete-document
+       :action delete-document-fn}
+      {:method rm/POST
+       :uri irurls/build-project-url
+       :authorization imfns/build-project
+       :action build-project}
+      {:method rm/POST
+       :uri irurls/build-uberjar-url
+       :authorization imfns/build-uberjar
+       :action build-uberjar}
+      {:method rm/POST
+       :uri irurls/build-project-dependencies-url
+       :authorization imfns/build-project-dependencies
+       :action build-project-dependencies}
+      {:method rm/POST
+       :uri irurls/clean-project-url
+       :authorization imfns/clean-project
+       :action clean-project}
+      {:method rm/POST
+       :uri irurls/run-project-url
+       :authorization imfns/run-project
+       :action run-project}
+      {:method rm/POST
+       :uri irurls/git-project-url
+       :authorization imfns/git-project
+       :action git-project}
+      {:method rm/POST
+       :uri irurls/git-status-url
+       :authorization imfns/git-status
+       :action git-status-fn}
+      {:method rm/POST
+       :uri irurls/git-diff-url
+       :authorization imfns/git-diff
+       :action git-diff-fn}
+      {:method rm/POST
+       :uri irurls/git-log-url
+       :authorization imfns/git-log
+       :action git-log-fn}
+      {:method rm/POST
+       :uri irurls/git-unpushed-url
+       :authorization imfns/git-unpushed
+       :action git-unpushed-fn}
+      {:method rm/POST
+       :uri irurls/git-commit-push-url
+       :authorization imfns/git-commit-push
+       :action git-commit-push-fn}
+      {:method rm/POST
+       :uri irurls/git-file-change-state-url
+       :authorization imfns/git-file-change-state
+       :action git-file-change-state-fn}
+      {:method rm/POST
+       :uri irurls/save-file-changes-url
+       :authorization imfns/save-file-changes
+       :action save-file-changes}
+      {:method rm/POST
+       :uri irurls/versioning-project-url
+       :authorization imfns/versioning-project
+       :action versioning-project-response}
+      {:method rm/POST
+       :uri irurls/upgrade-versions-url
+       :authorization imfns/upgrade-versions
+       :action upgrade-versions-response}
+      {:method rm/POST
+       :uri irurls/upgrade-versions-save-url
+       :authorization imfns/upgrade-versions-save
+       :action upgrade-versions-save-response}
+      {:method rm/POST
+       :uri irurls/upgrade-versions-build-url
+       :authorization imfns/upgrade-versions-build
+       :action upgrade-versions-build-response}
+      {:method rm/POST
+       :uri irurls/find-text-in-files-url
+       :authorization imfns/find-text-in-files
+       :action find-text-in-files-fn}
+      {:method rm/POST
+       :uri irurls/projects-tree-url
+       :authorization imfns/projects-tree
+       :action projects-tree}}))
 
-(defn allow-action-routing-fn
-  "Check if action is allowed function"
-  [request]
-  (let [allowed-functionalities (rt/get-allowed-actions
-                                  request)
-        {request-uri :request-uri
-         request-method :request-method} request]
-    (cond
-      (= request-method
-         "GET")
-        (cond
-          (= request-uri
-             irurls/video-url)
-            (contains?
-              allowed-functionalities
-              imfns/list-documents)
-          :else
-            false)
-      (= request-method
-         "ws GET")
-        (cond
-          (= request-uri
-             irurls/git-commit-push-action-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-commit-push-action)
-          :else
-            false)
-      (= request-method
-         "POST")
-        (cond
-          (= request-uri
-             irurls/read-file-url)
-            (contains?
-              allowed-functionalities
-              imfns/read-file)
-          (= request-uri
-             irurls/execute-shell-command-url)
-            (contains?
-              allowed-functionalities
-              imfns/execute-shell-command)
-          (= request-uri
-             irurls/list-documents-url)
-            (contains?
-              allowed-functionalities
-              imfns/list-documents)
-          (= request-uri
-             irurls/new-folder-url)
-            (contains?
-              allowed-functionalities
-              imfns/new-folder)
-          (= request-uri
-             irurls/new-file-url)
-            (contains?
-              allowed-functionalities
-              imfns/new-file)
-          (= request-uri
-             irurls/move-document-url)
-            (contains?
-              allowed-functionalities
-              imfns/move-document)
-          (= request-uri
-             irurls/copy-document-url)
-            (contains?
-              allowed-functionalities
-              imfns/copy-document)
-          (= request-uri
-             irurls/delete-document-url)
-            (contains?
-              allowed-functionalities
-              imfns/delete-document)
-          (= request-uri
-             irurls/build-project-url)
-            (contains?
-              allowed-functionalities
-              imfns/build-project)
-          (= request-uri
-             irurls/build-uberjar-url)
-            (contains?
-              allowed-functionalities
-              imfns/build-uberjar)
-          (= request-uri
-             irurls/build-project-dependencies-url)
-            (contains?
-              allowed-functionalities
-              imfns/build-project-dependencies)
-          (= request-uri
-             irurls/clean-project-url)
-            (contains?
-              allowed-functionalities
-              imfns/clean-project)
-          (= request-uri
-             irurls/run-project-url)
-            (contains?
-              allowed-functionalities
-              imfns/run-project)
-          (= request-uri
-             irurls/git-project-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-project)
-          (= request-uri
-             irurls/git-status-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-status)
-          (= request-uri
-             irurls/git-diff-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-diff)
-          (= request-uri
-             irurls/git-log-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-log)
-          (= request-uri
-             irurls/git-unpushed-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-unpushed)
-          (= request-uri
-             irurls/git-commit-push-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-commit-push)
-          (= request-uri
-             irurls/git-file-change-state-url)
-            (contains?
-              allowed-functionalities
-              imfns/git-file-change-state)
-          (= request-uri
-             irurls/save-file-changes-url)
-            (contains?
-              allowed-functionalities
-              imfns/save-file-changes)
-          (= request-uri
-             irurls/versioning-project-url)
-            (contains?
-              allowed-functionalities
-              imfns/versioning-project)
-          (= request-uri
-             irurls/upgrade-versions-url)
-            (contains?
-              allowed-functionalities
-              imfns/upgrade-versions)
-          (= request-uri
-             irurls/upgrade-versions-save-url)
-            (contains?
-              allowed-functionalities
-              imfns/upgrade-versions-save)
-          (= request-uri
-             irurls/upgrade-versions-build-url)
-            (contains?
-              allowed-functionalities
-              imfns/upgrade-versions-build)
-          (= request-uri
-             irurls/find-text-in-files-url)
-            (contains?
-              allowed-functionalities
-              imfns/find-text-in-files)
-          (= request-uri
-             irurls/projects-tree-url)
-            (contains?
-              allowed-functionalities
-              imfns/projects-tree)
-          :else
-            false)
-      :else
-        false))
- )
+(def logged-out-routing-set
+  (atom
+    #{}))
 
 (defn routing
   "Routing function"
   [request]
+  (rt/add-new-routes
+    @logged-in-routing-set
+    @logged-out-routing-set)
   (let [response (rt/routing
-                   request
-                   response-routing-fn
-                   allow-action-routing-fn)]
+                   request)]
     (audit
       request
       response)
@@ -2658,55 +2492,18 @@
   "Start server"
   []
   (try
-    (let [port (System/getenv "PORT")
-          port (if port
-                 (read-string
-                   port)
-                 1604)
-          access-control-allow-origin #{"https://ide:8455"
-                                        "https://ide:1614"
-                                        "http://ide:1614"
-                                        "https://192.168.1.86:1614"
-                                        "http://192.168.1.86:1614"
-                                        "https://ide:1604"
-                                        "http://ide:1604"
-                                        "https://192.168.1.86:1604"
-                                        "http://192.168.1.86:1604"
-                                        "http://ide:8457"}
-          access-control-allow-origin (if (System/getenv "CLIENT_ORIGIN")
-                                        (conj
-                                          access-control-allow-origin
-                                          (System/getenv "CLIENT_ORIGIN"))
-                                        access-control-allow-origin)
-          access-control-allow-origin (if (System/getenv "SERVER_ORIGIN")
-                                        (conj
-                                          access-control-allow-origin
-                                          (System/getenv "SERVER_ORIGIN"))
-                                        access-control-allow-origin)
-          access-control-map {(rsh/access-control-allow-origin) access-control-allow-origin
-                              (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
-                              (rsh/access-control-allow-credentials) true}
-          certificates {:keystore-file-path
-                         "certificate/ide_server.jks"
-                        :keystore-password
-                         "ultras12"}
-          certificates (when-not (System/getenv "CERTIFICATES")
-                         certificates)
-          thread-pool-size (System/getenv "THREAD_POOL_SIZE")]
-      (when thread-pool-size
-        (reset!
-          srvr/thread-pool-size
-          (read-string
-            thread-pool-size))
-       )
+    (let [port (config/define-port)
+          access-control-map (config/build-access-control-map)
+          certificates-map (config/build-certificates-map)]
+      (config/set-thread-pool-size)
       (srvr/start-server
         routing
         access-control-map
         port
-        certificates))
+        certificates-map))
     (mon/mongodb-connect
-      db-uri
-      db-name)
+      config/db-uri
+      config/db-name)
     (scripts/initialize-db-if-needed)
     (ssn/create-indexes)
     (catch Exception e
