@@ -11,8 +11,8 @@
                  [org.clojars.vladimirmarkovic86/session-lib "0.2.13"]
                  [org.clojars.vladimirmarkovic86/ide-middle "0.2.10"]
                  [org.clojars.vladimirmarkovic86/common-middle "0.2.5"]
-                 [org.clojars.vladimirmarkovic86/common-server "0.3.20"]
-                 [org.clojars.vladimirmarkovic86/audit-lib "0.1.16"]
+                 [org.clojars.vladimirmarkovic86/common-server "0.3.21"]
+                 [org.clojars.vladimirmarkovic86/audit-lib "0.1.17"]
                  ]
 
   :min-lein-version "2.0.0"
