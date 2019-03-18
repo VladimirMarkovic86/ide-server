@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [session-lib.core :as ssn]
             [server-lib.core :as srvr]
-            [utils-lib.core :as utils :refer [parse-body]]
+            [utils-lib.core :as utils]
             [mongo-lib.core :as mon]
             [ide-server.config :as config]
             [ide-server.scripts :as scripts]
@@ -105,22 +105,21 @@
 (defn execute-shell-command-fn
   "Execute shell command function with response"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         command (:command request-body)
         output (execute-shell-command
                  command)]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn read-file
   "Read file if supported and return it in response as entity body"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           file-path (:file-path request-body)
           operation (:operation request-body)
@@ -168,11 +167,10 @@
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str {:status "error"
-                   :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn stream-video
   "Stream video on GET request"
@@ -198,52 +196,49 @@
 (defn list-documents-fn
   "List documents from dir-path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         dir-path (:dir-path request-body)
         output (execute-shell-command
                  (str
                    "ls -al " dir-path))]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn mkdir-fn
   "Make directory in dir-path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         dir-path (:dir-path request-body)
         output (execute-shell-command
                  (str
                    "mkdir " dir-path))]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn mkfile-fn
   "Make file in file-path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         file-path (:file-path request-body)
         output (execute-shell-command
                  (str
                    "touch " file-path))]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn move-document-fn
   "Move document in dest-path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
@@ -251,15 +246,14 @@
                  (str
                    "mv " doc-path " " dest-path))]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn copy-document-fn
   "Copy document in dest-path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
@@ -267,25 +261,23 @@
                  (str
                    "cp -r " doc-path " " dest-path))]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn delete-document-fn
   "Delete document doc-path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         doc-path (:doc-path request-body)
         output (execute-shell-command
                  (str
                    "rm -rf " doc-path))]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
 (defn project-name
   "Format project name"
@@ -302,7 +294,7 @@
 (defn build-project
   "Build project fetched by _id"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -338,21 +330,20 @@
            "lein cljsbuild once dev"]))
      )
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :heading (str
-                            "Build project "
-                            (project-name
-                              group-id
-                              artifact-id
-                              version))
-                 :data @output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :heading (str
+                       "Build project "
+                       (project-name
+                         group-id
+                         artifact-id
+                         version))
+            :data @output}}))
 
 (defn build-uberjar
   "Build uberjar fetched by _id"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -372,21 +363,20 @@
            "cd " absolute-path)
          "lein uberjar"]))
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :heading (str
-                            "Build uberjar "
-                            (project-name
-                              group-id
-                              artifact-id
-                              version))
-                 :data @output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :heading (str
+                       "Build uberjar "
+                       (project-name
+                         group-id
+                         artifact-id
+                         version))
+            :data @output}}))
 
 (defn build-project-dependencies
   "Build project dependencies by _id"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -475,22 +465,21 @@
       (execute-shell-command
         @build-command))
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str {:status "success"
-                 :heading (str
-                            "Build dependencies of "
-                            m-group-id
-                            "/"
-                            m-artifact-id
-                            "-"
-                            m-version)
-                 :data @output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :heading (str
+                       "Build dependencies of "
+                       m-group-id
+                       "/"
+                       m-artifact-id
+                       "-"
+                       m-version)
+            :data @output}}))
 
 (defn clean-project
   "Clean project by _id"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -508,17 +497,15 @@
                   "lein clean"
                   "rm -rf resources/public/js/ resources/public/jsprod/"])]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :heading (str
-                         "Clean "
-                         (project-name
-                           group-id
-                           artifact-id
-                           version))
-              :data output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :heading (str
+                       "Clean "
+                       (project-name
+                         group-id
+                         artifact-id
+                         version))
+            :data output}}))
 
 (defn server-status-fn
   "Check server status of application project"
@@ -694,7 +681,7 @@
 (defn run-project
   "Interact with project wit start, stop, status and restart commands"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -734,17 +721,16 @@
           request-body))
      )
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :heading (str
-                         "Run "
-                         (project-name
-                           group-id
-                           artifact-id
-                           version))
-              :data {:out @status}})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :heading (str
+                       "Run "
+                       (project-name
+                         group-id
+                         artifact-id
+                         version))
+            :data {:out @status}}
+     }))
 
 (defn git-status
   "Check git status of project"
@@ -859,7 +845,7 @@
 (defn git-diff-fn
   "Output git diff for multiple absolute paths"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         absolute-paths (:absolute-paths request-body)
         result (atom [])]
@@ -930,16 +916,14 @@
          ))
      )
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :files-diffs @result})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :files-diffs @result}}))
 
 (defn git-log-fn
   "Output git log for multiple absolute paths"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         absolute-paths (:absolute-paths request-body)
         result (atom [])]
@@ -966,16 +950,14 @@
            out]))
      )
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :files-logs @result})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :files-logs @result}}))
 
 (defn git-unpushed-fn
   "Output git log for multiple absolute paths"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         absolute-paths (:absolute-paths request-body)
         result (atom [])]
@@ -1002,16 +984,14 @@
            out]))
      )
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :files-unpushed @result})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :files-unpushed @result}}))
 
 (defn git-commit-push-fn
   "Output git diff for multiple absolute paths"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         absolute-paths (:absolute-paths request-body)
         result (atom [])]
@@ -1096,11 +1076,9 @@
          ))
      )
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :changed-files @result})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :changed-files @result}}))
 
 (defn git-commit-push-action-fn
   "Execute commit push command"
@@ -1250,7 +1228,7 @@
   "Change file state in git add, remove or reset"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           {action :action
            absolute-path :absolute-path
@@ -1280,38 +1258,33 @@
              "git reset " changed-file)])
        )
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:success "success"})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:success "success"}})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:success "error"
-                :message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:success "error"
+              :message (.getMessage e)}})
+   ))
 
 (defn git-status-fn
   "HTTP response with git status command result on particular absolute path"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         absolute-path (:dir-path request-body)
         git-status-output (git-status
                             absolute-path)]
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :data git-status-output})}
-   ))
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data git-status-output}}))
 
 (defn git-project
   "Interact with project with git commands"
   [request]
-  (let [request-body (parse-body
+  (let [request-body (:body
                        request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
@@ -1433,21 +1406,19 @@
       (git-diff
         absolute-path))
     {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-plain)}
-     :body (str
-             {:status "success"
-              :git-remote-url (or new-git-remote-link
-                                  git-remote-link)
-              :unpushed-commits @unpushed-commits
-              :project-diff @project-diff
-              :data @output})})
- )
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :git-remote-url (or new-git-remote-link
+                                git-remote-link)
+            :unpushed-commits @unpushed-commits
+            :project-diff @project-diff
+            :data @output}}))
 
 (defn save-file-changes
   "Save file changes"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           file-path (:file-path request-body)
           file-content (:file-content request-body)
@@ -1464,16 +1435,15 @@
       (.close
         os)
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str {:status "success"})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"}})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str {:status "error"
-                   :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn project-clj-into-map
   "Makes clojure map out of project.clj file content"
@@ -1800,22 +1770,21 @@
    should be changed and up to date, for multiple projects"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           result (versioning-project
                    request-body)]
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str {:status "success"
-                   :result result})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"
+              :result result}})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str {:status "error"
-                   :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn build-order-fn-recur
   "Library project build order recursion"
@@ -1934,24 +1903,21 @@
   "Returns http response with changed projects and their current versions"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           result (upgrade-versions
                    request-body)]
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "success"
-                :result result})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"
+              :result result}})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "error"
-                :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn upgrade-versions-save
   "Changed versions in projects and their dependencies"
@@ -2018,23 +1984,20 @@
   "Changed versions in projects and their dependencies"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)]
       (upgrade-versions-save
         request-body)
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "success"})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"}})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "error"
-                :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn upgrade-versions-build
   "Build projects with changed versions"
@@ -2059,23 +2022,20 @@
   "Build projects with changed versions"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)]
       (upgrade-versions-build
         request-body)
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "success"})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"}})
     (catch Exception e
       (println (.getMessage e))
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "error"
-                :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn is-file-extension-supported?
   "Returns true if file extension is supported"
@@ -2206,7 +2166,7 @@
    .clj, .cljc, .cljs"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           absolute-paths (:absolute-paths request-body)
           find-this-text (:find-this-text request-body)
@@ -2284,25 +2244,22 @@
              ))
          ))
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "success"
-                :result @response-result})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"
+              :result @response-result}})
     (catch Exception e
       (println e)
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "error"
-                :error-message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "error"
+              :error-message (.getMessage e)}})
+   ))
 
 (defn projects-tree
   "Returns projects for project tree on front-end"
   [request]
   (try
-    (let [request-body (parse-body
+    (let [request-body (:body
                          request)
           entity-type (:entity-type request-body)
           entity-filter (:entity-filter request-body)
@@ -2338,19 +2295,17 @@
            ))
        )
       {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str {:status "success"
-                   :data @projects-a})})
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "success"
+              :data @projects-a}})
     (catch Exception e
       (println (.getMessage e))
       (println e)
       {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-plain)}
-       :body (str
-               {:status "Error"
-                :message (.getMessage e)})}
-     ))
- )
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:status "Error"
+              :message (.getMessage e)}})
+   ))
 
 (def logged-in-routing-set
   (atom

@@ -45,7 +45,8 @@
                                       access-control-allow-origin)
         access-control-map {(rsh/access-control-allow-origin) access-control-allow-origin
                             (rsh/access-control-allow-methods) "OPTIONS, GET, POST, DELETE, PUT"
-                            (rsh/access-control-allow-credentials) true}]
+                            (rsh/access-control-allow-credentials) true
+                            (rsh/access-control-allow-headers) "Content-Type"}]
     access-control-map))
 
 (defn build-certificates-map
