@@ -72,3 +72,23 @@
      ))
  )
 
+(def audit-action-a
+     (atom false))
+
+(defn set-audit
+  "Sets audit from AUDIT_ACTIONS environment variable"
+  []
+  (let [audit-actions (System/getenv "AUDIT_ACTIONS")
+        audit-actions (when audit-actions
+                        (let [audit-actions (read-string
+                                              audit-actions)]
+                          (when (instance?
+                                  Boolean
+                                  audit-actions)
+                            audit-actions))
+                       )]
+    (reset!
+      audit-action-a
+      audit-actions))
+ )
+
