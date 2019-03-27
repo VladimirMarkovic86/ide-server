@@ -3,6 +3,7 @@
   (:require [session-lib.core :as ssn]
             [server-lib.core :as srvr]
             [utils-lib.core :as utils]
+            [utils-lib.core-clj :as cljutils]
             [mongo-lib.core :as mon]
             [ide-server.config :as config]
             [ide-server.scripts :as scripts]
@@ -17,7 +18,6 @@
             [ide-middle.collection-names :refer [project-cname]]
             [common-server.core :as rt]
             [clojure.java.io :as io]
-            [clojure.java.shell :refer [sh]]
             [clojure.string :as cstring]
             [clojure.set :as cset]
             [audit-lib.core :refer [audit]])
@@ -29,86 +29,13 @@
 (def running
      "running")
 
-(defn sh-exists?
-  "Check if sh file exists"
-  []
-  (let [out (:out
-              (sh
-                "ls" "/tmp/sh"))]
-    (not
-      (empty?
-        out))
-   ))
-
-(defn make-sh-file
-  "Make sh file so it can be used in executing shell commands"
-  []
-  (when-not (sh-exists?)
-    (try
-      (sh "touch" "/tmp/sh")
-      (sh "chmod" "755" "/tmp/sh")
-      (let [file-path "/tmp/sh"
-            file-content (str
-                           "#!/bin/bash\n"
-                           "for i do\n"
-                           "  eval \"$i\"\n"
-                           "done")
-            f (java.io.File.
-                file-path)
-            ary (.getBytes
-                  file-content
-                  "UTF-8")
-            os (java.io.FileOutputStream.
-                 f)]
-        (.write
-          os
-          ary)
-        (.close
-          os))
-      (catch Exception e
-        (println (.getMessage e))
-       ))
-   ))
-
-(defn execute-shell-command
-  "Execute shell command from sh file at it's file path"
-  [command]
-  (make-sh-file)
-  (let [final-command (atom 
-                        ["/tmp/sh"])
-        result (atom nil)]
-    (when (string? command)
-      (swap!
-        final-command
-        conj
-        command)
-      (reset!
-        result
-        (apply
-          sh
-          @final-command))
-     )
-    (when (vector? command)
-      (doseq [cmd command]
-        (swap!
-          final-command
-          conj
-          cmd))
-      (reset!
-        result
-        (apply
-          sh
-          @final-command))
-     )
-    @result))
-
 (defn execute-shell-command-fn
   "Execute shell command function with response"
   [request]
   (let [request-body (:body
                        request)
         command (:command request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  command)]
     {:status (stc/ok)
      :headers {(eh/content-type) (mt/text-clojurescript)}
@@ -199,7 +126,7 @@
   (let [request-body (:body
                        request)
         dir-path (:dir-path request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  (str
                    "ls -al " dir-path))]
     {:status (stc/ok)
@@ -213,7 +140,7 @@
   (let [request-body (:body
                        request)
         dir-path (:dir-path request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  (str
                    "mkdir " dir-path))]
     {:status (stc/ok)
@@ -227,7 +154,7 @@
   (let [request-body (:body
                        request)
         file-path (:file-path request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  (str
                    "touch " file-path))]
     {:status (stc/ok)
@@ -242,7 +169,7 @@
                        request)
         doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  (str
                    "mv " doc-path " " dest-path))]
     {:status (stc/ok)
@@ -257,7 +184,7 @@
                        request)
         doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  (str
                    "cp -r " doc-path " " dest-path))]
     {:status (stc/ok)
@@ -271,7 +198,7 @@
   (let [request-body (:body
                        request)
         doc-path (:doc-path request-body)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  (str
                    "rm -rf " doc-path))]
     {:status (stc/ok)
@@ -311,7 +238,7 @@
              pem/library)
       (reset!
         output
-        (execute-shell-command
+        (cljutils/execute-shell-command
           [(str
              "cd " absolute-path)
            "lein install"]))
@@ -324,7 +251,7 @@
                  language))
       (reset!
         output
-        (execute-shell-command
+        (cljutils/execute-shell-command
           [(str
              "cd " absolute-path)
            "lein cljsbuild once dev"]))
@@ -358,7 +285,7 @@
         output (atom nil)]
     (reset!
       output
-      (execute-shell-command
+      (cljutils/execute-shell-command
         [(str
            "cd " absolute-path)
          "lein uberjar"]))
@@ -462,7 +389,7 @@
          "lein cljsbuild once dev"]))
     (reset!
       output
-      (execute-shell-command
+      (cljutils/execute-shell-command
         @build-command))
     {:status (stc/ok)
      :headers {(eh/content-type) (mt/text-clojurescript)}
@@ -491,7 +418,7 @@
          project-type :project-type} (mon/mongodb-find-by-id
                                        entity-type
                                        entity-id)
-        output (execute-shell-command
+        output (cljutils/execute-shell-command
                  [(str
                     "cd " absolute-path)
                   "lein clean"
@@ -538,7 +465,7 @@
                       pid
                       "\n"
                       "")
-                out (execute-shell-command
+                out (cljutils/execute-shell-command
                       (str
                         "ps p " pid " | grep " pid))
                 out (:out out)]
@@ -590,7 +517,7 @@
                        language)
                      (= project-type
                         pem/application))
-            (execute-shell-command
+            (cljutils/execute-shell-command
               [(str
                  "cd " absolute-path)
                "lein trampoline run &> server.log & echo $! >pid.file &"])
@@ -643,7 +570,7 @@
                         pid
                         "\n"
                         "")
-                  out (execute-shell-command
+                  out (cljutils/execute-shell-command
                         (str
                           "kill -9 " pid))]
               (reset!
@@ -652,7 +579,7 @@
                   request-body))
               (when (= @status
                        stopped)
-                (execute-shell-command
+                (cljutils/execute-shell-command
                   (str
                     "rm -rf " absolute-path "/pid.file"))
                ))
@@ -735,7 +662,7 @@
 (defn git-status
   "Check git status of project"
   [root-dir]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   "git status -s"])]
@@ -744,7 +671,7 @@
 (defn git-init
   "Initialize git project if not initialized yet"
   [root-dir]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   "git init"])]
@@ -754,7 +681,7 @@
   "Add remote git repository with ssh or https url"
   [root-dir
    git-remote-repo-link]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   (str
@@ -764,7 +691,7 @@
 (defn git-remote-remove
   "Remove remote repository url"
   [root-dir]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   "git remote remove origin"])]
@@ -774,7 +701,7 @@
   "Git add new file or file with changes"
   [root-dir
    file-path]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   (str
@@ -785,7 +712,7 @@
   "Git remove file"
   [root-dir
    file-path]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   (str
@@ -797,7 +724,7 @@
    doesn't work for \"git rm\""
   [root-dir
    file-path]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   (str
@@ -808,7 +735,7 @@
   "Git commit changes"
   [root-dir
    commit-message]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   (str
@@ -818,7 +745,7 @@
 (defn git-push
   "Git push commits to remote repository"
   [root-dir]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   "git push"])]
@@ -827,7 +754,7 @@
 (defn git-unpushed-commits
   "Check for unpushed commits"
   [root-dir]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   "git log origin/master..HEAD --oneline"])]
@@ -836,7 +763,7 @@
 (defn git-diff
   "Git diff of project"
   [root-dir]
-  (let [output (execute-shell-command
+  (let [output (cljutils/execute-shell-command
                  [(str
                     "cd " root-dir)
                   "git diff"])]
@@ -886,7 +813,7 @@
                                  3
                                  (count
                                    changed-file))
-                  diff-output (execute-shell-command
+                  diff-output (cljutils/execute-shell-command
                                 [(str
                                    "cd " absolute-path)
                                  (str
@@ -928,7 +855,7 @@
         absolute-paths (:absolute-paths request-body)
         result (atom [])]
     (doseq [absolute-path absolute-paths]
-      (let [output (execute-shell-command
+      (let [output (cljutils/execute-shell-command
                      [(str
                         "cd " absolute-path)
                       "git log"])
@@ -962,7 +889,7 @@
         absolute-paths (:absolute-paths request-body)
         result (atom [])]
     (doseq [absolute-path absolute-paths]
-      (let [output (execute-shell-command
+      (let [output (cljutils/execute-shell-command
                      [(str
                         "cd " absolute-path)
                       "git log origin/master..HEAD --oneline"])
@@ -1015,7 +942,7 @@
                                                             last-slash-index)
                                                           (count
                                                             absolute-path))
-                                    output (execute-shell-command
+                                    output (cljutils/execute-shell-command
                                              [(str
                                                 "cd " absolute-path-part1)
                                               (str
@@ -1056,7 +983,7 @@
                                  3
                                  (count
                                    changed-file))
-                  diff-output (execute-shell-command
+                  diff-output (cljutils/execute-shell-command
                                 [(str
                                    "cd " absolute-path)
                                  (str
@@ -1095,7 +1022,7 @@
             changed-root-paths (atom #{})
             progress-value (atom 0)]
         (doseq [root-path root-paths]
-          (let [git-status-output (execute-shell-command
+          (let [git-status-output (cljutils/execute-shell-command
                                     [(str
                                        "cd " root-path)
                                      "git status -s"])
@@ -1140,7 +1067,7 @@
         (when (= pem/git-commit
                  action)
           (doseq [root-path @changed-root-paths]
-            (execute-shell-command
+            (cljutils/execute-shell-command
               [(str
                  "cd " root-path)
                (str
@@ -1164,7 +1091,7 @@
         (when (= pem/git-commit-push
                  action)
           (doseq [root-path @changed-root-paths]
-            (execute-shell-command
+            (cljutils/execute-shell-command
               [(str
                  "cd " root-path)
                (str
@@ -1189,7 +1116,7 @@
         (when (= pem/git-push
                  action)
           (doseq [root-path @changed-root-paths]
-            (execute-shell-command
+            (cljutils/execute-shell-command
               [(str
                  "cd " root-path)
                "git push origin master"])
@@ -1235,7 +1162,7 @@
            changed-file :changed-file} request-body]
       (when (= action
                pem/git-add)
-        (execute-shell-command
+        (cljutils/execute-shell-command
           [(str
              "cd " absolute-path)
            (str
@@ -1243,7 +1170,7 @@
        )
       (when (= action
                pem/git-rm)
-        (execute-shell-command
+        (cljutils/execute-shell-command
           [(str
              "cd " absolute-path)
            (str
@@ -1251,7 +1178,7 @@
        )
       (when (= action
                pem/git-reset)
-        (execute-shell-command
+        (cljutils/execute-shell-command
           [(str
              "cd " absolute-path)
            (str
@@ -2010,7 +1937,7 @@
                                              "project"
                                              {:group-id group-id
                                               :artifact-id artifact-id})]
-        (execute-shell-command
+        (cljutils/execute-shell-command
           [(str
              "cd "
              absolute-path)
@@ -2084,7 +2011,7 @@
   [absolute-paths
    sub-files]
   (doseq [absolute-path absolute-paths]
-    (let [ls-out (execute-shell-command
+    (let [ls-out (cljutils/execute-shell-command
                    [(str
                       "ls -al " absolute-path)])
           ls-out (:out ls-out)
