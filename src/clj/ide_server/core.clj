@@ -1061,9 +1061,8 @@
                ))
            ))
         (websocket-output-fn
-          (str
-            {:action "update-progress"
-             :progress-value 0}))
+          {:action "update-progress"
+           :progress-value 0})
         (when (= pem/git-commit
                  action)
           (doseq [root-path @changed-root-paths]
@@ -1078,16 +1077,14 @@
               progress-value
               inc)
             (websocket-output-fn
-              (str
-                {:action "update-progress"
-                 :progress-value (int
-                                   (/ (* @progress-value
-                                         100)
-                                      (count
-                                        @changed-root-paths))
-                                  )})
-             ))
-         )
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
         (when (= pem/git-commit-push
                  action)
           (doseq [root-path @changed-root-paths]
@@ -1103,16 +1100,14 @@
               progress-value
               inc)
             (websocket-output-fn
-              (str
-                {:action "update-progress"
-                 :progress-value (int
-                                   (/ (* @progress-value
-                                         100)
-                                      (count
-                                        @changed-root-paths))
-                                  )})
-             ))
-         )
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
         (when (= pem/git-push
                  action)
           (doseq [root-path @changed-root-paths]
@@ -1124,29 +1119,24 @@
               progress-value
               inc)
             (websocket-output-fn
-              (str
-                {:action "update-progress"
-                 :progress-value (int
-                                   (/ (* @progress-value
-                                         100)
-                                      (count
-                                        @changed-root-paths))
-                                  )})
-             ))
-         )
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
         (websocket-output-fn
-          (str
-            {:action "update-progress"
-             :progress-value 100}))
+          {:action "update-progress"
+           :progress-value 100})
         (websocket-output-fn
-          (str
-            {:status "close"})
+          {:status "close"}
           -120))
       (catch Exception e
         (println (.getMessage e))
         ((:websocket-output-fn websocket)
-          (str
-            {:status "close"})
+          {:status "close"}
           -120))
      ))
  )

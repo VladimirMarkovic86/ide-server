@@ -63,12 +63,26 @@
 (defn set-thread-pool-size
   "Set thread pool size"
   []
-  (let [thread-pool-size (System/getenv "THREAD_POOL_SIZE")]
-    (when thread-pool-size
+  (let [core-pool-size (System/getenv "CORE_POOL_SIZE")
+        maximum-pool-size (System/getenv "MAXIMUM_POOL_SIZE")
+        array-blocking-queue-size (System/getenv "ARRAY_BLOCKING_QUEUE_SIZE")]
+    (when core-pool-size
       (reset!
-        srvr/thread-pool-size
+        srvr/core-pool-size
         (read-string
-          thread-pool-size))
+          core-pool-size))
+     )
+    (when maximum-pool-size
+      (reset!
+        srvr/maximum-pool-size
+        (read-string
+          maximum-pool-size))
+     )
+    (when array-blocking-queue-size
+      (reset!
+        srvr/maximum-pool-size
+        (read-string
+          array-blocking-queue-size))
      ))
  )
 
