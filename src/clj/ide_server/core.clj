@@ -2380,6 +2380,8 @@
       config/db-name)
     (scripts/initialize-db-if-needed)
     (ssn/create-indexes)
+    (config/add-custom-entities-to-entities-map)
+    (config/set-report-paths)
     (catch Exception e
       (println (.getMessage e))
      ))

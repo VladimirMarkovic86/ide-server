@@ -1,6 +1,11 @@
 (ns ide-server.config
-  (:require [ajax-lib.http.response-header :as rsh]
-            [server-lib.core :as srvr]))
+  (:require [server-lib.core :as srvr]
+            [ajax-lib.http.response-header :as rsh]
+            [ide-server.project.entity :as projecte]
+            [ide-server.task.entity :as taske]
+            [common-server.core :as rt]
+            [utils-lib.core-clj :as utilsclj]
+            [pdflatex-lib.core :as tex]))
 
 (def db-uri
      (or (System/getenv "MONGODB_URI")
@@ -9,6 +14,9 @@
 
 (def db-name
      "ide-db")
+
+(def project-absolute-path
+     "/home/vladimir/workspace/clojure/projects/ide_server")
 
 (defn define-port
   "Defines server's port"
@@ -104,5 +112,43 @@
     (reset!
       audit-action-a
       audit-actions))
+ )
+
+(defn add-custom-entities-to-entities-map
+  "Adds custom entities for this project into entities map from common-server"
+  []
+  (swap!
+    rt/entities-map
+    assoc
+    :project {:reports projecte/reports}
+    :task {:reports taske/reports}))
+
+(defn set-report-paths
+  "Sets report paths"
+  []
+  (let [absolute-path (:out (utilsclj/execute-shell-command
+                              "pwd"))
+        path-prefix (if (= absolute-path
+                           project-absolute-path)
+                      ""
+                      (str
+                        project-absolute-path
+                        "/"))]
+    (reset!
+      tex/reports-templates-path
+      (or (System/getenv
+            "REPORTS_TEMPLATES_PATH")
+          (str
+            path-prefix
+            @tex/reports-templates-path))
+     )
+    (reset!
+      tex/reports-generated-path
+      (or (System/getenv
+            "REPORTS_GENERATED_PATH")
+          (str
+            path-prefix
+            @tex/reports-generated-path))
+     ))
  )
 
