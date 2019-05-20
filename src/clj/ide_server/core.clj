@@ -2382,6 +2382,7 @@
     (ssn/create-indexes)
     (config/add-custom-entities-to-entities-map)
     (config/set-report-paths)
+    (config/read-sign-up-roles)
     (catch Exception e
       (println (.getMessage e))
      ))
