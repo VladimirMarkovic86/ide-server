@@ -2383,6 +2383,8 @@
     (config/add-custom-entities-to-entities-map)
     (config/set-report-paths)
     (config/read-sign-up-roles)
+    (config/setup-e-mail-account)
+    (config/setup-e-mail-templates-path)
     (catch Exception e
       (println (.getMessage e))
      ))

@@ -5,6 +5,30 @@
 (defn insert-labels
   "Inserts labels"
   []
+  (mon/mongodb-update-one
+    language-cname
+    {:code 62}
+    {:$set
+      {:english "Integrated Development Environment app"
+       :serbian "Интеграционо Развојно Окружење"}})
+  (mon/mongodb-update-one
+    language-cname
+    {:code 63}
+    {:$set
+      {:english "Integrated Development Environment app is based on sample app, and it implements text editor, git syncronization, build tool and server actions."
+       :serbian "Интеграционо Развојно Окружење је апликација заснована на sample app пројекту, и имплементира текстуално уређивање, git синхронизацију, алат за изградњу и рад са сервером."}})
+  (mon/mongodb-update-one
+    language-cname
+    {:code 81}
+    {:$set
+      {:english "Integrated Development Environment App reset password"
+       :serbian "Integrated Development Environment App промена лозинке"}})
+  (mon/mongodb-update-one
+    language-cname
+    {:code 82}
+    {:$set
+      {:english "A password reset was requested for Integrated Development Environment App account with this email address.<br>To continue password reset copy, paste and confirm code from below."
+       :serbian "Налог апликације Integrated Development Environment App са овом е-адресом захтева промену лозинке.<br>Да би наставили промену лозинке копирајте, налепите и потврдите следећи код."}})
   (mon/mongodb-insert-many
     language-cname
     [{ :code 1001, :english "Project", :serbian "Пројекат" }

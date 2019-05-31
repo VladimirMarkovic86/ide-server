@@ -169,3 +169,32 @@
       role-names))
  )
 
+(defn setup-e-mail-account
+  "Sets up email account with email address and password"
+  []
+  (let [email-address (or (System/getenv
+                            "NO_REPLY_EMAIL_ADDRESS")
+                          "markovic.vladimir86.no.reply@gmail.com")
+        email-password (or (System/getenv
+                             "NO_REPLY_EMAIL_PASSWORD")
+                           "secret")]
+    (reset!
+      rt/email-address
+      email-address)
+    (reset!
+      rt/email-password
+      email-password))
+ )
+
+(defn setup-e-mail-templates-path
+  "Sets up email templates path"
+  []
+  (let [reset-password-mail-template-path
+         (or (System/getenv
+               "RESET_PASSWORD_EMAIL_TEMPLATE_PATH")
+             "resources/mails/reset_password_template.html")]
+    (reset!
+      rt/reset-password-mail-template-path
+      reset-password-mail-template-path))
+ )
+
