@@ -2385,6 +2385,7 @@
     (config/read-sign-up-roles)
     (config/setup-e-mail-account)
     (config/setup-e-mail-templates-path)
+    (config/bind-set-specific-preferences-fn)
     (catch Exception e
       (println (.getMessage e))
      ))

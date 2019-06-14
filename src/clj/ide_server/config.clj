@@ -4,6 +4,8 @@
             [ide-server.project.entity :as projecte]
             [ide-server.task.entity :as taske]
             [common-server.core :as rt]
+            [common-server.preferences :as prf]
+            [ide-server.preferences :as isprf]
             [common-middle.role-names :refer [chat-rname
                                               reports-rname]]
             [ide-middle.role-names :refer [project-admin-rname
@@ -198,4 +200,11 @@
       rt/reset-password-mail-template-path
       reset-password-mail-template-path))
  )
+
+(defn bind-set-specific-preferences-fn
+  "Binds set specific preferences to common server atom"
+  []
+  (reset!
+    prf/set-specific-preferences-a-fn
+    isprf/set-specific-preferences-fn))
 

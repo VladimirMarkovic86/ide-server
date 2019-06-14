@@ -106,5 +106,7 @@
      { :code 1073, :english "ClojureScript", :serbian "ClojureScript" }
      { :code 1074, :english "Application", :serbian "Апликација" }
      { :code 1075, :english "Library", :serbian "Библиотека" }
+     { :code 1076, :english "Project entity", :serbian "Ентитет пројекат" }
+     { :code 1077, :english "Task entity", :serbian "Ентитет задатак" }
 	    ]))
 

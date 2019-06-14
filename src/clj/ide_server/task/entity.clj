@@ -1,6 +1,7 @@
 (ns ide-server.task.entity
   (:require [language-lib.core :refer [get-label]]
-            [ide-middle.task.entity :as imte]))
+            [ide-middle.task.entity :as imte]
+            [common-server.preferences :as prf]))
 
 (defn format-code-field
   "Formats code field"
@@ -179,7 +180,10 @@
 
 (defn reports
   "Returns reports projection"
-  [& [chosen-language]]
+  [request
+   & [chosen-language]]
+  (prf/set-preferences
+    request)
   {:entity-label (get-label
                    1043
                    chosen-language)
@@ -193,8 +197,14 @@
                 ;:estimated-time
                 ;:taken-time
                 ]
-   :qsort {:code 1}
-   :rows imte/rows
+   :qsort {:priority 1
+           :code 1}
+   :rows (int
+           (imte/calculate-rows))
+   :table-rows (int
+                 @imte/table-rows-a)
+   :card-columns (int
+                   @imte/card-columns-a)
    :labels {:code (get-label
                     1035
                     chosen-language)

@@ -1,6 +1,20 @@
 (ns ide-server.project.entity
   (:require [language-lib.core :refer [get-label]]
-            [ide-middle.project.entity :as impe]))
+            [ide-middle.project.entity :as impe]
+            [common-server.preferences :as prf]))
+
+(defn format-group-id-field
+  "Formats group-id field in \\nolinkurl{group-id} format"
+  [raw-group-id
+   chosen-language]
+  (when (and raw-group-id
+             (string?
+               raw-group-id))
+    (str
+      "nolinkurlopenbraces"
+      raw-group-id
+      "closedbraces"))
+ )
 
 (defn format-language-field
   "Formats language field"
@@ -66,7 +80,10 @@
 
 (defn reports
   "Returns reports projection"
-  [& [chosen-language]]
+  [request
+   & [chosen-language]]
+  (prf/set-preferences
+    request)
   {:entity-label (get-label
                    1001
                    chosen-language)
@@ -79,8 +96,13 @@
                 :language
                 :project-type
                 ]
-   :qsort {:name 1}
-   :rows impe/rows
+   :qsort {:artifact-id 1}
+   :rows (int
+           (impe/calculate-rows))
+   :table-rows (int
+                 @impe/table-rows-a)
+   :card-columns (int
+                   @impe/card-columns-a)
    :labels {:name (get-label
                     1003
                     chosen-language)
@@ -111,7 +133,8 @@
                     :header-text-color "white"}
              :group-id {:width "45"
                         :header-background-color "lightblue"
-                        :header-text-color "white"}
+                        :header-text-color "white"
+                        :data-format-fn format-group-id-field}
              :artifact-id {:width "35"
                            :header-background-color "lightblue"
                            :header-text-color "white"
