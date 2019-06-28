@@ -108,5 +108,7 @@
      { :code 1075, :english "Library", :serbian "Библиотека" }
      { :code 1076, :english "Project entity", :serbian "Ентитет пројекат" }
      { :code 1077, :english "Task entity", :serbian "Ентитет задатак" }
+     { :code 1078, :english "Download", :serbian "Преузми" }
+     { :code 1079, :english "Upload", :serbian "Отпреми" }
 	    ]))
 

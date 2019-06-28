@@ -21,7 +21,8 @@
             [clojure.string :as cstring]
             [clojure.set :as cset]
             [audit-lib.core :refer [audit]])
-  (:import [java.io FileNotFoundException]))
+  (:import [java.io FileNotFoundException]
+           [java.util Base64]))
 
 (def stopped
      "stopped")
@@ -66,18 +67,27 @@
       (when (contains?
               #{"image"}
               operation)
-        (let [f (java.io.File. file-path)
-              ary (byte-array (.length f))
-              is (java.io.FileInputStream. f)
+        (let [f (java.io.File.
+                  file-path)
+              ary (byte-array
+                    (.length
+                      f))
+              is (java.io.FileInputStream.
+                   f)
               extension-start (cstring/last-index-of
                                 file-path
                                 ".")
               extension (.substring
                           file-path
-                          (inc extension-start)
-                          (count file-path))]
-          (.read is ary)
-          (.close is)
+                          (inc
+                            extension-start)
+                          (count
+                            file-path))]
+          (.read
+            is
+            ary)
+          (.close
+            is)
           (reset!
             headers
             {(eh/content-type) (str
@@ -88,11 +98,34 @@
             body
             ary))
        )
+      (when (= operation
+               "download")
+        (let [f (java.io.File.
+                  file-path)
+              ary (byte-array
+                    (.length
+                      f))
+              is (java.io.FileInputStream.
+                   f)]
+          (.read
+            is
+            ary)
+          (.close
+            is)
+          (reset!
+            headers
+            {(eh/content-type) (mt/application-octet-stream)})
+          (reset!
+            body
+            ary))
+       )
       {:status (stc/ok)
        :headers @headers
        :body @body})
     (catch Exception e
-      (println (.getMessage e))
+      (println
+        (.getMessage
+          e))
       {:status (stc/internal-server-error)
        :headers {(eh/content-type) (mt/text-clojurescript)}
        :body {:status "error"
@@ -1339,11 +1372,22 @@
                          request)
           file-path (:file-path request-body)
           file-content (:file-content request-body)
+          is-base64 (:is-base64 request-body)
           f (java.io.File.
               file-path)
-          ary (.getBytes
-                file-content
-                "UTF-8")
+          ary (if is-base64
+                (let [splitted-base64 (cstring/split
+                                        file-content
+                                        #"base64,")
+                      image-base64 (get
+                                     splitted-base64
+                                     1)]
+                  (.decode
+                    (Base64/Decoder/getDecoder)
+                    image-base64))
+                (.getBytes
+                  file-content
+                  "UTF-8"))
           os (java.io.FileOutputStream.
                f)]
       (.write
