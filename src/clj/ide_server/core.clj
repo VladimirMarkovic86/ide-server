@@ -30,25 +30,178 @@
 (def running
      "running")
 
-(defn execute-shell-command-fn
-  "Execute shell command function with response"
+(defmethod rt/routing-fn
+  [rm/GET
+   irurls/video-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
-        command (:command request-body)
-        output (cljutils/execute-shell-command
-                 command)]
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-clojurescript)}
-     :body {:status "success"
-            :data output}}))
+  "Stream video on GET request"
+  (let [file-path (get-in
+                    request
+                    [:request-get-params
+                     :filepath])
+        last-dot-index (cstring/last-index-of
+                         file-path
+                         ".")
+        extension (.substring
+                    file-path
+                    (inc
+                      last-dot-index))]
+    (srvr/read-file
+      file-path
+      extension
+      request
+      true))
+ )
 
-(defn read-file
-  "Read file if supported and return it in response as entity body"
+(defmethod rt/routing-fn
+  [rm/ws-GET
+   irurls/git-commit-push-action-url
+   :logged-in
+   :authorized]
   [request]
+  "Execute commit push command"
+  (let [websocket (:websocket request)]
+    (try
+      (let [{websocket-message :websocket-message
+             websocket-output-fn :websocket-output-fn} websocket
+            request-body (read-string
+                           websocket-message)
+            root-paths (:root-paths request-body)
+            commit-message (:commit-message request-body)
+            action (:action request-body)
+            changed-root-paths (atom #{})
+            progress-value (atom 0)]
+        (doseq [root-path root-paths]
+          (let [git-status-output (cljutils/execute-shell-command
+                                    [(str
+                                       "cd " root-path)
+                                     "git status -s"])
+                out (:out git-status-output)]
+            (when-not (empty?
+                        out)
+              (let [changed-files (cstring/split
+                                    out
+                                    #"\n")
+                    is-changed ((fn [index]
+                                  (when (< index
+                                           (count
+                                             changed-files))
+                                    (let [element (get
+                                                    changed-files
+                                                    index)
+                                          md (.substring
+                                               element
+                                               1
+                                               2)
+                                          is-added-rm (= md
+                                                         " ")]
+                                      (if is-added-rm
+                                        true
+                                        (recur
+                                          (inc
+                                            index))
+                                       ))
+                                   ))
+                                0)]
+                (when is-changed
+                  (swap!
+                    changed-root-paths
+                    conj
+                    root-path))
+               ))
+           ))
+        (websocket-output-fn
+          {:action "update-progress"
+           :progress-value 0})
+        (when (= pem/git-commit
+                 action)
+          (doseq [root-path @changed-root-paths]
+            (cljutils/execute-shell-command
+              [(str
+                 "cd " root-path)
+               (str
+                 "git commit -m \""
+                 commit-message
+                 "\"")])
+            (swap!
+              progress-value
+              inc)
+            (websocket-output-fn
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
+        (when (= pem/git-commit-push
+                 action)
+          (doseq [root-path @changed-root-paths]
+            (cljutils/execute-shell-command
+              [(str
+                 "cd " root-path)
+               (str
+                 "git commit -m '"
+                 commit-message
+                 "'")
+               "git push origin master"])
+            (swap!
+              progress-value
+              inc)
+            (websocket-output-fn
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
+        (when (= pem/git-push
+                 action)
+          (doseq [root-path @changed-root-paths]
+            (cljutils/execute-shell-command
+              [(str
+                 "cd " root-path)
+               "git push origin master"])
+            (swap!
+              progress-value
+              inc)
+            (websocket-output-fn
+              {:action "update-progress"
+               :progress-value (int
+                                 (/ (* @progress-value
+                                       100)
+                                    (count
+                                      @changed-root-paths))
+                                )})
+           ))
+        (websocket-output-fn
+          {:action "update-progress"
+           :progress-value 100})
+        (websocket-output-fn
+          {:status "close"}
+          -120))
+      (catch Exception e
+        (println (.getMessage e))
+        ((:websocket-output-fn websocket)
+          {:status "close"}
+          -120))
+     ))
+ )
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/read-file-url
+   :logged-in
+   :authorized]
+  [request]
+  "Read file if supported and return it in response as entity body"
   (try
-    (let [request-body (:body
-                         request)
+    (let [request-body (:body request)
           file-path (:file-path request-body)
           operation (:operation request-body)
           body (atom nil)
@@ -132,32 +285,30 @@
               :error-message (.getMessage e)}})
    ))
 
-(defn stream-video
-  "Stream video on GET request"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/execute-shell-command-url
+   :logged-in
+   :authorized]
   [request]
-  (let [file-path (get-in
-                    request
-                    [:request-get-params
-                     :filepath])
-        last-dot-index (cstring/last-index-of
-                         file-path
-                         ".")
-        extension (.substring
-                    file-path
-                    (inc
-                      last-dot-index))]
-    (srvr/read-file
-      file-path
-      extension
-      request
-      true))
- )
+  "Execute shell command function with response"
+  (let [request-body (:body request)
+        command (:command request-body)
+        output (cljutils/execute-shell-command
+                 command)]
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data output}}))
 
-(defn list-documents-fn
-  "List documents from dir-path"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/list-documents-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "List documents from dir-path"
+  (let [request-body (:body request)
         dir-path (:dir-path request-body)
         output (cljutils/execute-shell-command
                  (str
@@ -167,11 +318,14 @@
      :body {:status "success"
             :data output}}))
 
-(defn mkdir-fn
-  "Make directory in dir-path"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/new-folder-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Make directory in dir-path"
+  (let [request-body (:body request)
         dir-path (:dir-path request-body)
         output (cljutils/execute-shell-command
                  (str
@@ -181,11 +335,14 @@
      :body {:status "success"
             :data output}}))
 
-(defn mkfile-fn
-  "Make file in file-path"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/new-file-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Make file in file-path"
+  (let [request-body (:body request)
         file-path (:file-path request-body)
         output (cljutils/execute-shell-command
                  (str
@@ -195,11 +352,14 @@
      :body {:status "success"
             :data output}}))
 
-(defn move-document-fn
-  "Move document in dest-path"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/move-document-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Move document in dest-path"
+  (let [request-body (:body request)
         doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
         output (cljutils/execute-shell-command
@@ -210,11 +370,14 @@
      :body {:status "success"
             :data output}}))
 
-(defn copy-document-fn
-  "Copy document in dest-path"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/copy-document-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Copy document in dest-path"
+  (let [request-body (:body request)
         doc-path (:doc-path request-body)
         dest-path (:dest-path request-body)
         output (cljutils/execute-shell-command
@@ -225,11 +388,14 @@
      :body {:status "success"
             :data output}}))
 
-(defn delete-document-fn
-  "Delete document doc-path"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/delete-document-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Delete document doc-path"
+  (let [request-body (:body request)
         doc-path (:doc-path request-body)
         output (cljutils/execute-shell-command
                  (str
@@ -251,11 +417,14 @@
     "-"
     version))
 
-(defn build-project
-  "Build project fetched by _id"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/build-project-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Build project fetched by _id"
+  (let [request-body (:body request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
@@ -300,11 +469,14 @@
                          version))
             :data @output}}))
 
-(defn build-uberjar
-  "Build uberjar fetched by _id"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/build-uberjar-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Build uberjar fetched by _id"
+  (let [request-body (:body request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
@@ -333,11 +505,14 @@
                          version))
             :data @output}}))
 
-(defn build-project-dependencies
-  "Build project dependencies by _id"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/build-project-dependencies-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Build project dependencies by _id"
+  (let [request-body (:body request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {m-group-id :group-id
@@ -436,11 +611,14 @@
                        m-version)
             :data @output}}))
 
-(defn clean-project
-  "Clean project by _id"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/clean-project-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Clean project by _id"
+  (let [request-body (:body request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
@@ -638,11 +816,14 @@
         request-body))
     @status))
 
-(defn run-project
-  "Interact with project wit start, stop, status and restart commands"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/run-project-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
+  "Interact with project wit start, stop, status and restart commands"
+  (let [request-body (:body request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         {group-id :group-id
@@ -802,440 +983,14 @@
                   "git diff"])]
     output))
 
-(defn git-diff-fn
-  "Output git diff for multiple absolute paths"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-project-url
+   :logged-in
+   :authorized]
   [request]
-  (let [request-body (:body
-                       request)
-        absolute-paths (:absolute-paths request-body)
-        result (atom [])]
-    (doseq [absolute-path absolute-paths]
-      (let [changed-files (git-status
-                            absolute-path)
-            [absolute-path
-             changed-files] (if (cstring/index-of
-                                  (:err changed-files)
-                                  "Not a directory")
-                             (let [last-slash-index (cstring/last-index-of
-                                                      absolute-path
-                                                      "/")
-                                   absolute-path-part1 (.substring
-                                                         absolute-path
-                                                         0
-                                                         last-slash-index)
-                                   absolute-path-part2 (.substring
-                                                         absolute-path
-                                                         (inc
-                                                           last-slash-index)
-                                                         (count
-                                                           absolute-path))]
-                               [absolute-path-part1
-                                [(str
-                                   "   "
-                                   absolute-path-part2)]])
-                            [absolute-path
-                             (cstring/split
-                               (:out changed-files)
-                               #"\n")])]
-        (doseq [changed-file changed-files]
-          (when-not (cstring/index-of
-                      changed-file
-                      "../")
-            (let [changed-file (.substring
-                                 changed-file
-                                 3
-                                 (count
-                                   changed-file))
-                  diff-output (cljutils/execute-shell-command
-                                [(str
-                                   "cd " absolute-path)
-                                 (str
-                                   "git diff " changed-file)])
-                  diff-output (:out diff-output)
-                  file-name (cstring/split
-                              changed-file
-                              #"/")
-                  file-name (last
-                              file-name)
-                  file-name (str
-                              file-name
-                              "_diff")]
-              (when-not (empty?
-                          diff-output)
-                (swap!
-                  result
-                  conj
-                  [(str
-                     absolute-path
-                     "/"
-                     changed-file
-                     "_diff")
-                   file-name
-                   diff-output]))
-             ))
-         ))
-     )
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-clojurescript)}
-     :body {:status "success"
-            :files-diffs @result}}))
-
-(defn git-log-fn
-  "Output git log for multiple absolute paths"
-  [request]
-  (let [request-body (:body
-                       request)
-        absolute-paths (:absolute-paths request-body)
-        result (atom [])]
-    (doseq [absolute-path absolute-paths]
-      (let [output (cljutils/execute-shell-command
-                     [(str
-                        "cd " absolute-path)
-                      "git log"])
-            out (:out output)
-            file-name (last
-                        (cstring/split
-                          absolute-path
-                          #"/"))
-            file-name (str
-                        file-name
-                        ".commit_log")]
-        (swap!
-          result
-          conj
-          [(str
-             absolute-path
-             ".commit_log")
-           file-name
-           out]))
-     )
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-clojurescript)}
-     :body {:status "success"
-            :files-logs @result}}))
-
-(defn git-unpushed-fn
-  "Output git log for multiple absolute paths"
-  [request]
-  (let [request-body (:body
-                       request)
-        absolute-paths (:absolute-paths request-body)
-        result (atom [])]
-    (doseq [absolute-path absolute-paths]
-      (let [output (cljutils/execute-shell-command
-                     [(str
-                        "cd " absolute-path)
-                      "git log origin/master..HEAD --oneline"])
-            out (:out output)
-            file-name (last
-                        (cstring/split
-                          absolute-path
-                          #"/"))
-            file-name (str
-                        file-name
-                        ".commit_log")]
-        (swap!
-          result
-          conj
-          [(str
-             absolute-path
-             ".commit_log")
-           file-name
-           out]))
-     )
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-clojurescript)}
-     :body {:status "success"
-            :files-unpushed @result}}))
-
-(defn git-commit-push-fn
-  "Output git diff for multiple absolute paths"
-  [request]
-  (let [request-body (:body
-                       request)
-        absolute-paths (:absolute-paths request-body)
-        result (atom [])]
-    (doseq [absolute-path absolute-paths]
-      (let [changed-files (git-status
-                            absolute-path)
-            [absolute-path
-             changed-files] (if (cstring/index-of
-                                  (:err changed-files)
-                                  "Not a directory")
-                              (let [last-slash-index (cstring/last-index-of
-                                                       absolute-path
-                                                       "/")
-                                    absolute-path-part1 (.substring
-                                                          absolute-path
-                                                          0
-                                                          last-slash-index)
-                                    absolute-path-part2 (.substring
-                                                          absolute-path
-                                                          (inc
-                                                            last-slash-index)
-                                                          (count
-                                                            absolute-path))
-                                    output (cljutils/execute-shell-command
-                                             [(str
-                                                "cd " absolute-path-part1)
-                                              (str
-                                                "git status -s " absolute-path-part2)])
-                                    status-out (:out output)]
-                                (when-not (empty?
-                                            status-out)
-                                  [absolute-path-part1
-                                   [status-out]]))
-                              [absolute-path
-                               (cstring/split
-                                 (:out changed-files)
-                                 #"\n")])]
-        (doseq [changed-file changed-files]
-          (when-not (cstring/index-of
-                      changed-file
-                      "../")
-            (let [type-of-change (.substring
-                                   changed-file
-                                   0
-                                   3)
-                  mad (.substring
-                        type-of-change
-                        0
-                        1)
-                  md (.substring
-                       type-of-change
-                       1
-                       2)
-                  action (if-not (= mad
-                                    " ")
-                           mad
-                           md)
-                  checked (= md
-                             " ")
-                  changed-file (.substring
-                                 changed-file
-                                 3
-                                 (count
-                                   changed-file))
-                  diff-output (cljutils/execute-shell-command
-                                [(str
-                                   "cd " absolute-path)
-                                 (str
-                                   "git status -s " changed-file)])
-                  diff-output (:out diff-output)
-                  ]
-              (when-not (empty?
-                          diff-output)
-                (swap!
-                  result
-                  conj
-                  [absolute-path
-                   changed-file
-                   checked
-                   action]))
-             ))
-         ))
-     )
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-clojurescript)}
-     :body {:status "success"
-            :changed-files @result}}))
-
-(defn git-commit-push-action-fn
-  "Execute commit push command"
-  [request]
-  (let [websocket (:websocket request)]
-    (try
-      (let [{websocket-message :websocket-message
-             websocket-output-fn :websocket-output-fn} websocket
-            request-body (read-string
-                           websocket-message)
-            root-paths (:root-paths request-body)
-            commit-message (:commit-message request-body)
-            action (:action request-body)
-            changed-root-paths (atom #{})
-            progress-value (atom 0)]
-        (doseq [root-path root-paths]
-          (let [git-status-output (cljutils/execute-shell-command
-                                    [(str
-                                       "cd " root-path)
-                                     "git status -s"])
-                out (:out git-status-output)]
-            (when-not (empty?
-                        out)
-              (let [changed-files (cstring/split
-                                    out
-                                    #"\n")
-                    is-changed ((fn [index]
-                                  (when (< index
-                                           (count
-                                             changed-files))
-                                    (let [element (get
-                                                    changed-files
-                                                    index)
-                                          md (.substring
-                                               element
-                                               1
-                                               2)
-                                          is-added-rm (= md
-                                                         " ")]
-                                      (if is-added-rm
-                                        true
-                                        (recur
-                                          (inc
-                                            index))
-                                       ))
-                                   ))
-                                0)]
-                (when is-changed
-                  (swap!
-                    changed-root-paths
-                    conj
-                    root-path))
-               ))
-           ))
-        (websocket-output-fn
-          {:action "update-progress"
-           :progress-value 0})
-        (when (= pem/git-commit
-                 action)
-          (doseq [root-path @changed-root-paths]
-            (cljutils/execute-shell-command
-              [(str
-                 "cd " root-path)
-               (str
-                 "git commit -m \""
-                 commit-message
-                 "\"")])
-            (swap!
-              progress-value
-              inc)
-            (websocket-output-fn
-              {:action "update-progress"
-               :progress-value (int
-                                 (/ (* @progress-value
-                                       100)
-                                    (count
-                                      @changed-root-paths))
-                                )})
-           ))
-        (when (= pem/git-commit-push
-                 action)
-          (doseq [root-path @changed-root-paths]
-            (cljutils/execute-shell-command
-              [(str
-                 "cd " root-path)
-               (str
-                 "git commit -m '"
-                 commit-message
-                 "'")
-               "git push origin master"])
-            (swap!
-              progress-value
-              inc)
-            (websocket-output-fn
-              {:action "update-progress"
-               :progress-value (int
-                                 (/ (* @progress-value
-                                       100)
-                                    (count
-                                      @changed-root-paths))
-                                )})
-           ))
-        (when (= pem/git-push
-                 action)
-          (doseq [root-path @changed-root-paths]
-            (cljutils/execute-shell-command
-              [(str
-                 "cd " root-path)
-               "git push origin master"])
-            (swap!
-              progress-value
-              inc)
-            (websocket-output-fn
-              {:action "update-progress"
-               :progress-value (int
-                                 (/ (* @progress-value
-                                       100)
-                                    (count
-                                      @changed-root-paths))
-                                )})
-           ))
-        (websocket-output-fn
-          {:action "update-progress"
-           :progress-value 100})
-        (websocket-output-fn
-          {:status "close"}
-          -120))
-      (catch Exception e
-        (println (.getMessage e))
-        ((:websocket-output-fn websocket)
-          {:status "close"}
-          -120))
-     ))
- )
-
-(defn git-file-change-state-fn
-  "Change file state in git add, remove or reset"
-  [request]
-  (try
-    (let [request-body (:body
-                         request)
-          {action :action
-           absolute-path :absolute-path
-           changed-file :changed-file} request-body]
-      (when (= action
-               pem/git-add)
-        (cljutils/execute-shell-command
-          [(str
-             "cd " absolute-path)
-           (str
-             "git add " changed-file)])
-       )
-      (when (= action
-               pem/git-rm)
-        (cljutils/execute-shell-command
-          [(str
-             "cd " absolute-path)
-           (str
-             "git rm " changed-file)])
-       )
-      (when (= action
-               pem/git-reset)
-        (cljutils/execute-shell-command
-          [(str
-             "cd " absolute-path)
-           (str
-             "git reset " changed-file)])
-       )
-      {:status (stc/ok)
-       :headers {(eh/content-type) (mt/text-clojurescript)}
-       :body {:success "success"}})
-    (catch Exception e
-      (println (.getMessage e))
-      {:status (stc/internal-server-error)
-       :headers {(eh/content-type) (mt/text-clojurescript)}
-       :body {:success "error"
-              :message (.getMessage e)}})
-   ))
-
-(defn git-status-fn
-  "HTTP response with git status command result on particular absolute path"
-  [request]
-  (let [request-body (:body
-                       request)
-        absolute-path (:dir-path request-body)
-        git-status-output (git-status
-                            absolute-path)]
-    {:status (stc/ok)
-     :headers {(eh/content-type) (mt/text-clojurescript)}
-     :body {:status "success"
-            :data git-status-output}}))
-
-(defn git-project
   "Interact with project with git commands"
-  [request]
-  (let [request-body (:body
-                       request)
+  (let [request-body (:body request)
         entity-id (:entity-id request-body)
         entity-type (:entity-type request-body)
         action (:action request-body)
@@ -1364,12 +1119,328 @@
             :project-diff @project-diff
             :data @output}}))
 
-(defn save-file-changes
-  "Save file changes"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-status-url
+   :logged-in
+   :authorized]
   [request]
+  "HTTP response with git status command result on particular absolute path"
+  (let [request-body (:body request)
+        absolute-path (:dir-path request-body)
+        git-status-output (git-status
+                            absolute-path)]
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :data git-status-output}}))
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-diff-url
+   :logged-in
+   :authorized]
+  [request]
+  "Output git diff for multiple absolute paths"
+  (let [request-body (:body request)
+        absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [changed-files (git-status
+                            absolute-path)
+            [absolute-path
+             changed-files] (if (cstring/index-of
+                                  (:err changed-files)
+                                  "Not a directory")
+                             (let [last-slash-index (cstring/last-index-of
+                                                      absolute-path
+                                                      "/")
+                                   absolute-path-part1 (.substring
+                                                         absolute-path
+                                                         0
+                                                         last-slash-index)
+                                   absolute-path-part2 (.substring
+                                                         absolute-path
+                                                         (inc
+                                                           last-slash-index)
+                                                         (count
+                                                           absolute-path))]
+                               [absolute-path-part1
+                                [(str
+                                   "   "
+                                   absolute-path-part2)]])
+                            [absolute-path
+                             (cstring/split
+                               (:out changed-files)
+                               #"\n")])]
+        (doseq [changed-file changed-files]
+          (when-not (cstring/index-of
+                      changed-file
+                      "../")
+            (let [changed-file (.substring
+                                 changed-file
+                                 3
+                                 (count
+                                   changed-file))
+                  diff-output (cljutils/execute-shell-command
+                                [(str
+                                   "cd " absolute-path)
+                                 (str
+                                   "git diff " changed-file)])
+                  diff-output (:out diff-output)
+                  file-name (cstring/split
+                              changed-file
+                              #"/")
+                  file-name (last
+                              file-name)
+                  file-name (str
+                              file-name
+                              "_diff")]
+              (when-not (empty?
+                          diff-output)
+                (swap!
+                  result
+                  conj
+                  [(str
+                     absolute-path
+                     "/"
+                     changed-file
+                     "_diff")
+                   file-name
+                   diff-output]))
+             ))
+         ))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :files-diffs @result}}))
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-log-url
+   :logged-in
+   :authorized]
+  [request]
+  "Output git log for multiple absolute paths"
+  (let [request-body (:body request)
+        absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [output (cljutils/execute-shell-command
+                     [(str
+                        "cd " absolute-path)
+                      "git log"])
+            out (:out output)
+            file-name (last
+                        (cstring/split
+                          absolute-path
+                          #"/"))
+            file-name (str
+                        file-name
+                        ".commit_log")]
+        (swap!
+          result
+          conj
+          [(str
+             absolute-path
+             ".commit_log")
+           file-name
+           out]))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :files-logs @result}}))
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-unpushed-url
+   :logged-in
+   :authorized]
+  [request]
+  "Output unpushed git commits for multiple absolute paths"
+  (let [request-body (:body request)
+        absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [output (cljutils/execute-shell-command
+                     [(str
+                        "cd " absolute-path)
+                      "git log origin/master..HEAD --oneline"])
+            out (:out output)
+            file-name (last
+                        (cstring/split
+                          absolute-path
+                          #"/"))
+            file-name (str
+                        file-name
+                        ".commit_log")]
+        (swap!
+          result
+          conj
+          [(str
+             absolute-path
+             ".commit_log")
+           file-name
+           out]))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :files-unpushed @result}}))
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-commit-push-url
+   :logged-in
+   :authorized]
+  [request]
+  "Output git changed files paths for multiple projects absolute paths"
+  (let [request-body (:body request)
+        absolute-paths (:absolute-paths request-body)
+        result (atom [])]
+    (doseq [absolute-path absolute-paths]
+      (let [changed-files (git-status
+                            absolute-path)
+            [absolute-path
+             changed-files] (if (cstring/index-of
+                                  (:err changed-files)
+                                  "Not a directory")
+                              (let [last-slash-index (cstring/last-index-of
+                                                       absolute-path
+                                                       "/")
+                                    absolute-path-part1 (.substring
+                                                          absolute-path
+                                                          0
+                                                          last-slash-index)
+                                    absolute-path-part2 (.substring
+                                                          absolute-path
+                                                          (inc
+                                                            last-slash-index)
+                                                          (count
+                                                            absolute-path))
+                                    output (cljutils/execute-shell-command
+                                             [(str
+                                                "cd " absolute-path-part1)
+                                              (str
+                                                "git status -s " absolute-path-part2)])
+                                    status-out (:out output)]
+                                (when-not (empty?
+                                            status-out)
+                                  [absolute-path-part1
+                                   [status-out]]))
+                              [absolute-path
+                               (cstring/split
+                                 (:out changed-files)
+                                 #"\n")])]
+        (doseq [changed-file changed-files]
+          (when-not (cstring/index-of
+                      changed-file
+                      "../")
+            (let [type-of-change (.substring
+                                   changed-file
+                                   0
+                                   3)
+                  mad (.substring
+                        type-of-change
+                        0
+                        1)
+                  md (.substring
+                       type-of-change
+                       1
+                       2)
+                  action (if-not (= mad
+                                    " ")
+                           mad
+                           md)
+                  checked (= md
+                             " ")
+                  changed-file (.substring
+                                 changed-file
+                                 3
+                                 (count
+                                   changed-file))
+                  diff-output (cljutils/execute-shell-command
+                                [(str
+                                   "cd " absolute-path)
+                                 (str
+                                   "git status -s " changed-file)])
+                  diff-output (:out diff-output)
+                  ]
+              (when-not (empty?
+                          diff-output)
+                (swap!
+                  result
+                  conj
+                  [absolute-path
+                   changed-file
+                   checked
+                   action]))
+             ))
+         ))
+     )
+    {:status (stc/ok)
+     :headers {(eh/content-type) (mt/text-clojurescript)}
+     :body {:status "success"
+            :changed-files @result}}))
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/git-file-change-state-url
+   :logged-in
+   :authorized]
+  [request]
+  "Change file state in git add, remove or reset"
   (try
-    (let [request-body (:body
-                         request)
+    (let [request-body (:body request)
+          {action :action
+           absolute-path :absolute-path
+           changed-file :changed-file} request-body]
+      (when (= action
+               pem/git-add)
+        (cljutils/execute-shell-command
+          [(str
+             "cd " absolute-path)
+           (str
+             "git add " changed-file)])
+       )
+      (when (= action
+               pem/git-rm)
+        (cljutils/execute-shell-command
+          [(str
+             "cd " absolute-path)
+           (str
+             "git rm " changed-file)])
+       )
+      (when (= action
+               pem/git-reset)
+        (cljutils/execute-shell-command
+          [(str
+             "cd " absolute-path)
+           (str
+             "git reset " changed-file)])
+       )
+      {:status (stc/ok)
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:success "success"}})
+    (catch Exception e
+      (println (.getMessage e))
+      {:status (stc/internal-server-error)
+       :headers {(eh/content-type) (mt/text-clojurescript)}
+       :body {:success "error"
+              :message (.getMessage e)}})
+   ))
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/save-file-changes-url
+   :logged-in
+   :authorized]
+  [request]
+  "Save file changes"
+  (try
+    (let [request-body (:body request)
           file-path (:file-path request-body)
           file-content (:file-content request-body)
           is-base64 (:is-base64 request-body)
@@ -1473,10 +1544,8 @@
                         (str
                           absolute-path
                           "/project.clj"))
-          project-name (:project
-                         project-clj)
-          project-version (:version
-                            project-clj)
+          project-name (:project project-clj)
+          project-version (:version project-clj)
           projects-vector (mon/mongodb-find
                             project-cname)
           result (atom #{})]
@@ -1487,12 +1556,9 @@
                                   (str
                                     absolute-path-dep
                                     "/project.clj"))
-                dependent-project-name (:project
-                                         dep-project-clj)
-                dependent-project-version (:version
-                                            dep-project-clj)
-                dependencies-seq (:dependencies
-                                   dep-project-clj)]
+                dependent-project-name (:project dep-project-clj)
+                dependent-project-version (:version dep-project-clj)
+                dependencies-seq (:dependencies dep-project-clj)]
             (doseq [[project-name-dep
                      project-version-dep] dependencies-seq]
               (let [project-name-dep (str
@@ -1549,8 +1615,7 @@
                       result-set
                       disj
                       {:project dependent-project-name})
-              dependencies (:dependencies
-                             selected-project)
+              dependencies (:dependencies selected-project)
               dependencies (conj
                              dependencies
                              {:project project-name
@@ -1620,13 +1685,13 @@
                                       (:project element))
                                   )
                                  @result-set)
-              selected-project (first selected-project)
+              selected-project (first
+                                 selected-project)
               debug (swap!
                       result-set
                       disj
                       {:project dependent-project-name})
-              dependencies (:dependencies
-                             selected-project)
+              dependencies (:dependencies selected-project)
               dependencies (conj
                              dependencies
                              {:project project-name
@@ -1697,14 +1762,14 @@
                                           (:project element))
                                       )
                                      @result-set)
-                  selected-project (first selected-project)
+                  selected-project (first
+                                     selected-project)
                   debug (swap!
                           result-set
                           disj
                           {:project dependent-project-name})
                   dependencies (atom
-                                 (:dependencies
-                                   selected-project))]
+                                 (:dependencies selected-project))]
               (doseq [dependent-dependency dependent-dependecies]
                 (swap!
                   dependencies
@@ -1726,13 +1791,16 @@
      )
     @result-set))
 
-(defn versioning-project-response
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/versioning-project-url
+   :logged-in
+   :authorized]
+  [request]
   "Returns http response list of projects where version and dependencies
    should be changed and up to date, for multiple projects"
-  [request]
   (try
-    (let [request-body (:body
-                         request)
+    (let [request-body (:body request)
           result (versioning-project
                    request-body)]
       {:status (stc/ok)
@@ -1763,12 +1831,9 @@
                             absolute-path
                             "/project.clj"))
             project-name (str
-                           (:project
-                             project-clj))
-            project-version (:version
-                              project-clj)
-            dependencies (:dependencies
-                           project-clj)
+                           (:project project-clj))
+            project-version (:version project-clj)
+            dependencies (:dependencies project-clj)
             ready-to-build (atom true)]
         (doseq [[dep-name
                  dep-version] dependencies]
@@ -1860,12 +1925,15 @@
        ))
     @result))
 
-(defn upgrade-versions-response
-  "Returns http response with changed projects and their current versions"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/upgrade-versions-url
+   :logged-in
+   :authorized]
   [request]
+  "Returns http response with changed projects and their current versions"
   (try
-    (let [request-body (:body
-                         request)
+    (let [request-body (:body request)
           result (upgrade-versions
                    request-body)]
       {:status (stc/ok)
@@ -1941,12 +2009,15 @@
        ))
    ))
 
-(defn upgrade-versions-save-response
-  "Changed versions in projects and their dependencies"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/upgrade-versions-save-url
+   :logged-in
+   :authorized]
   [request]
+  "Changed versions in projects and their dependencies"
   (try
-    (let [request-body (:body
-                         request)]
+    (let [request-body (:body request)]
       (upgrade-versions-save
         request-body)
       {:status (stc/ok)
@@ -1979,12 +2050,15 @@
      ))
  )
 
-(defn upgrade-versions-build-response
-  "Build projects with changed versions"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/upgrade-versions-build-url
+   :logged-in
+   :authorized]
   [request]
+  "Build projects with changed versions"
   (try
-    (let [request-body (:body
-                         request)]
+    (let [request-body (:body request)]
       (upgrade-versions-build
         request-body)
       {:status (stc/ok)
@@ -2123,12 +2197,20 @@
   @sub-files)
 
 (defn find-text-in-files-fn
+  
+  [request]
+  )
+
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/find-text-in-files-url
+   :logged-in
+   :authorized]
+  [request]
   "Find given text in selected files or in absolute-paths of particular file types
    .clj, .cljc, .cljs"
-  [request]
   (try
-    (let [request-body (:body
-                         request)
+    (let [request-body (:body request)
           absolute-paths (:absolute-paths request-body)
           find-this-text (:find-this-text request-body)
           sub-files (iterate-into-depth
@@ -2216,12 +2298,15 @@
               :error-message (.getMessage e)}})
    ))
 
-(defn projects-tree
-  "Returns projects for project tree on front-end"
+(defmethod rt/routing-fn
+  [rm/POST
+   irurls/projects-tree-url
+   :logged-in
+   :authorized]
   [request]
+  "Returns projects for project tree on front-end"
   (try
-    (let [request-body (:body
-                         request)
+    (let [request-body (:body request)
           entity-type (:entity-type request-body)
           entity-filter (:entity-filter request-body)
           qsort (:qsort request-body)
@@ -2237,8 +2322,7 @@
               output (git-status
                        absolute-path)]
           (if (empty?
-                (:out
-                  output))
+                (:out output))
             (swap!
               projects-a
               conj
@@ -2268,135 +2352,9 @@
               :message (.getMessage e)}})
    ))
 
-(def logged-in-routing-set
-  (atom
-    #{{:method rm/GET
-       :uri irurls/video-url
-       :authorization imfns/list-documents
-       :action stream-video}
-      {:method rm/ws-GET
-       :uri irurls/git-commit-push-action-url
-       :authorization imfns/git-commit-push-action
-       :action git-commit-push-action-fn}
-      {:method rm/POST
-       :uri irurls/read-file-url
-       :authorization imfns/read-file
-       :action read-file}
-      {:method rm/POST
-       :uri irurls/execute-shell-command-url
-       :authorization imfns/execute-shell-command
-       :action execute-shell-command-fn}
-      {:method rm/POST
-       :uri irurls/list-documents-url
-       :authorization imfns/list-documents
-       :action list-documents-fn}
-      {:method rm/POST
-       :uri irurls/new-folder-url
-       :authorization imfns/new-folder
-       :action mkdir-fn}
-      {:method rm/POST
-       :uri irurls/new-file-url
-       :authorization imfns/new-file
-       :action mkfile-fn}
-      {:method rm/POST
-       :uri irurls/move-document-url
-       :authorization imfns/move-document
-       :action move-document-fn}
-      {:method rm/POST
-       :uri irurls/copy-document-url
-       :authorization imfns/copy-document
-       :action copy-document-fn}
-      {:method rm/POST
-       :uri irurls/delete-document-url
-       :authorization imfns/delete-document
-       :action delete-document-fn}
-      {:method rm/POST
-       :uri irurls/build-project-url
-       :authorization imfns/build-project
-       :action build-project}
-      {:method rm/POST
-       :uri irurls/build-uberjar-url
-       :authorization imfns/build-uberjar
-       :action build-uberjar}
-      {:method rm/POST
-       :uri irurls/build-project-dependencies-url
-       :authorization imfns/build-project-dependencies
-       :action build-project-dependencies}
-      {:method rm/POST
-       :uri irurls/clean-project-url
-       :authorization imfns/clean-project
-       :action clean-project}
-      {:method rm/POST
-       :uri irurls/run-project-url
-       :authorization imfns/run-project
-       :action run-project}
-      {:method rm/POST
-       :uri irurls/git-project-url
-       :authorization imfns/git-project
-       :action git-project}
-      {:method rm/POST
-       :uri irurls/git-status-url
-       :authorization imfns/git-status
-       :action git-status-fn}
-      {:method rm/POST
-       :uri irurls/git-diff-url
-       :authorization imfns/git-diff
-       :action git-diff-fn}
-      {:method rm/POST
-       :uri irurls/git-log-url
-       :authorization imfns/git-log
-       :action git-log-fn}
-      {:method rm/POST
-       :uri irurls/git-unpushed-url
-       :authorization imfns/git-unpushed
-       :action git-unpushed-fn}
-      {:method rm/POST
-       :uri irurls/git-commit-push-url
-       :authorization imfns/git-commit-push
-       :action git-commit-push-fn}
-      {:method rm/POST
-       :uri irurls/git-file-change-state-url
-       :authorization imfns/git-file-change-state
-       :action git-file-change-state-fn}
-      {:method rm/POST
-       :uri irurls/save-file-changes-url
-       :authorization imfns/save-file-changes
-       :action save-file-changes}
-      {:method rm/POST
-       :uri irurls/versioning-project-url
-       :authorization imfns/versioning-project
-       :action versioning-project-response}
-      {:method rm/POST
-       :uri irurls/upgrade-versions-url
-       :authorization imfns/upgrade-versions
-       :action upgrade-versions-response}
-      {:method rm/POST
-       :uri irurls/upgrade-versions-save-url
-       :authorization imfns/upgrade-versions-save
-       :action upgrade-versions-save-response}
-      {:method rm/POST
-       :uri irurls/upgrade-versions-build-url
-       :authorization imfns/upgrade-versions-build
-       :action upgrade-versions-build-response}
-      {:method rm/POST
-       :uri irurls/find-text-in-files-url
-       :authorization imfns/find-text-in-files
-       :action find-text-in-files-fn}
-      {:method rm/POST
-       :uri irurls/projects-tree-url
-       :authorization imfns/projects-tree
-       :action projects-tree}}))
-
-(def logged-out-routing-set
-  (atom
-    #{}))
-
 (defn routing
   "Routing function"
   [request]
-  (rt/add-new-routes
-    @logged-in-routing-set
-    @logged-out-routing-set)
   (let [response (rt/routing
                    request)]
     (when @config/audit-action-a
@@ -2430,6 +2388,7 @@
     (config/setup-e-mail-account)
     (config/setup-e-mail-templates-path)
     (config/bind-set-specific-preferences-fn)
+    (config/bind-specific-functionalities-by-url)
     (catch Exception e
       (println (.getMessage e))
      ))

@@ -11,6 +11,7 @@
             [ide-middle.role-names :refer [project-admin-rname
                                            task-admin-rname
                                            working-area-user-rname]]
+            [ide-middle.functionalities-by-url :as imfns-by-url]
             [utils-lib.core-clj :as utilsclj]
             [pdflatex-lib.core :as tex]))
 
@@ -207,4 +208,9 @@
   (reset!
     prf/set-specific-preferences-a-fn
     isprf/set-specific-preferences-fn))
+
+(defn bind-specific-functionalities-by-url
+  "Binds specific functionalities by url"
+  []
+  (imfns-by-url/bind-specific-functionalities-by-url))
 
