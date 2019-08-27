@@ -633,7 +633,7 @@
                  [(str
                     "cd " absolute-path)
                   "lein clean"
-                  "rm -rf resources/public/js/ resources/public/jsprod/"])]
+                  "rm -rf resources/public/assets/js/ resources/public/assets/jsprod/"])]
     {:status (stc/ok)
      :headers {(eh/content-type) (mt/text-clojurescript)}
      :body {:status "success"

@@ -14,7 +14,7 @@
   (issl/insert-labels)
   (issr/insert-roles)
   (issu/update-users)
-  (issp/insert-projects)
+  ;;(issp/insert-projects)
   (mon/mongodb-insert-one
     db-updates-cname
     {:initialized true
